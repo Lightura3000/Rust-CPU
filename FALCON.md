@@ -94,13 +94,13 @@ VALCON (VAriable Length COmputatiON)
 
 - **Opcode:** `0x0C`
 - **Description:** Divides first register by a 16 bit immediate (signed)
-- **Pseudocode:** `rA = imm / rB`
+- **Pseudocode:** `rA = rB / imm`
 - **Encoding:** `0x0cABIIII`
 
 
 - **Opcode:** `0x0D`
 - **Description:** Divides a 16 bit immediate by a register (signed)
-- **Pseudocode:** `rA = rB / imm`
+- **Pseudocode:** `rA = imm / rB`
 - **Encoding:** `0x0dABIIII`
 
 ## Bitwise AND (`and`)

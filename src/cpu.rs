@@ -79,15 +79,137 @@ impl CPU {
         self.flags.less = cmp == Ordering::Less;
     }
 
-    fn signed_compare<T: Ord>(&mut self, a: T, b: T) {
-        let cmp = a.cmp(&b);
-        self.flags.greater = cmp == Ordering::Greater;
-        self.flags.equal = cmp == Ordering::Equal;
-        self.flags.less = cmp == Ordering::Less;
-    }
-
+    #[deprecated(note = "wasn't implemented correctly")]
     pub fn run(&mut self, instructions: &Vec<u32>) {
         instructions.iter().for_each(|instruction| self.exec(*instruction));
+    }
+
+    // A helper function to perform an unsigned arithmetic operation and set flags
+    fn exec_arith_op(
+        &mut self,
+        reg_a: usize,
+        left_hand_side: u64,
+        right_hand_side: u64,
+        op_unsigned: fn(u64, u64) -> (u64, bool),
+        op_signed: fn(i64, i64) -> (i64, bool),
+    ) {
+        let (result, carry) = op_unsigned(left_hand_side, right_hand_side);
+        // For signed overflow detection, we perform the operation in signed space
+        let (signed_result, signed_overflow) = op_signed(left_hand_side as i64, right_hand_side as i64);
+
+        self.regs[reg_a] = result;
+        self.flags.carry = carry;
+        self.flags.zero = result == 0;
+        self.flags.negative = signed_result < 0;
+        self.flags.overflow = signed_overflow;
+    }
+
+    /// Helper for addition: rA = lhs + rhs
+    fn exec_add(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
+        self.exec_arith_op(reg_a, lhs, rhs, u64::overflowing_add, i64::overflowing_add);
+    }
+
+    /// Helper for subtraction: rA = lhs - rhs
+    fn exec_sub(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
+        self.exec_arith_op(reg_a, lhs, rhs, u64::overflowing_sub, i64::overflowing_sub);
+    }
+
+    /// Helper for multiplication: rA = lhs * rhs
+    fn exec_mul(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
+        self.exec_arith_op(reg_a, lhs, rhs, u64::overflowing_mul, i64::overflowing_mul);
+    }
+
+    /// Helper for unsigned division: rA = lhs / rhs
+    fn exec_div_u(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
+        if rhs == 0 {
+            // Division by zero
+            self.regs[reg_a] = 0;
+            self.flags.carry = false;
+            self.flags.zero = true;
+            self.flags.negative = false;
+            self.flags.overflow = true;
+        } else {
+            let result = lhs / rhs;
+            self.regs[reg_a] = result;
+            self.flags.carry = false;
+            self.flags.zero = result == 0;
+            self.flags.negative = (result as i64) < 0;
+            self.flags.overflow = false; // Unsigned division doesn't typically overflow
+        }
+    }
+
+    /// Helper for signed division: rA = lhs / rhs (signed)
+    fn exec_div_s(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
+        let lhs = lhs as i64;
+        let rhs = rhs as i64;
+
+        if rhs == 0 {
+            // Division by zero
+            self.flags.overflow = true;
+            self.regs[reg_a] = 0;
+            self.flags.zero = true;
+            self.flags.negative = false;
+            self.flags.carry = false;
+        } else {
+            // Check the potential overflow case: i64::MIN / -1
+            // This would cause an overflow in signed division since the result can't be represented.
+            if lhs == i64::MIN && rhs == -1 {
+                // In many architectures this causes an arithmetic exception.
+                // Here, we treat it as overflow.
+                self.regs[reg_a] = (lhs / rhs) as u64;
+                self.flags.overflow = true;
+            } else {
+                self.regs[reg_a] = (lhs / rhs) as u64;
+                self.flags.overflow = false;
+            }
+
+            let result = self.regs[reg_a] as i64;
+            self.flags.carry = false;
+            self.flags.zero = result == 0;
+            self.flags.negative = result < 0;
+        }
+    }
+
+    /// Helper for unsigned modulo: rA = lhs % rhs
+    fn exec_mod_u(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
+        if rhs == 0 {
+            // Modulo by zero
+            self.regs[reg_a] = 0;
+            self.flags.carry = false;
+            self.flags.zero = true;
+            self.flags.negative = false;
+            self.flags.overflow = true;
+        } else {
+            let result = lhs % rhs;
+            self.regs[reg_a] = result;
+            self.flags.carry = false;
+            self.flags.zero = result == 0;
+            self.flags.negative = (result as i64) < 0;
+            self.flags.overflow = false;
+        }
+    }
+
+    // Helper for signed modulo: rA = lhs % rhs (signed)
+    fn exec_mod_s(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
+        let lhs_i = lhs as i64;
+        let rhs_i = rhs as i64;
+
+        if rhs_i == 0 {
+            // Modulo by zero
+            self.regs[reg_a] = 0;
+            self.flags.carry = false;
+            self.flags.zero = true;
+            self.flags.negative = false;
+            self.flags.overflow = true;
+        } else {
+            // Unlike division, (i64::MIN % -1) = 0, which doesn't overflow.
+            let result_i = lhs_i % rhs_i;
+            self.regs[reg_a] = result_i as u64;
+            self.flags.carry = false;
+            self.flags.zero = result_i == 0;
+            self.flags.negative = result_i < 0;
+            self.flags.overflow = false;
+        }
     }
 
     pub fn exec(&mut self, instruction: u32) {
@@ -98,13 +220,13 @@ impl CPU {
         const IMMEDIATE_MASK: u32 = 0x0000FFFF; // 16 bits for immediate
 
         let opcode = ((instruction & OPCODE_MASK) >> OPCODE_MASK.trailing_zeros()) as u8;
-        let reg_a = ((instruction & REG_A_MASK) >> REG_A_MASK.trailing_zeros()) as u8;
+        let reg_a = ((instruction & REG_A_MASK) >> REG_A_MASK.trailing_zeros()) as usize;
         let reg_b = ((instruction & REG_B_MASK) >> REG_B_MASK.trailing_zeros()) as u8;
         let reg_c = ((instruction & REG_C_MASK) >> REG_C_MASK.trailing_zeros()) as u8;
         let imm16 = (instruction & IMMEDIATE_MASK) as u16;
         let imm64 = (instruction & IMMEDIATE_MASK) as u64;
 
-        let reg_a_value = self.regs[reg_a as usize];
+        let reg_a_value = self.regs[reg_a];
         let reg_b_value = self.regs[reg_b as usize];
         let reg_c_value = self.regs[reg_c as usize];
 
@@ -119,43 +241,43 @@ impl CPU {
 
         match opcode {
             0x00 /* nop              */ => {},
-            0x01 /* rA = rB + rC     */ => self.regs[reg_a as usize] = reg_b_value + reg_c_value,
-            0x02 /* rA = rB + imm    */ => self.regs[reg_a as usize] = reg_b_value + imm64,
-            0x03 /* rA = rB - rC     */ => self.regs[reg_a as usize] = reg_b_value - reg_c_value,
-            0x04 /* rA = rB - imm    */ => self.regs[reg_a as usize] = reg_b_value - imm64,
-            0x05 /* rA = imm - rB    */ => self.regs[reg_a as usize] = imm64 - reg_b_value,
-            0x06 /* rA = rB * rC     */ => self.regs[reg_a as usize] = reg_b_value - reg_c_value,
-            0x07 /* rA = rB * imm    */ => self.regs[reg_a as usize] = reg_b_value * reg_c_value,
-            0x08 /* rA = rB / rC     */ => self.regs[reg_a as usize] = reg_b_value / reg_c_value,
-            0x09 /* rA = rB / imm    */ => self.regs[reg_a as usize] = reg_b_value / imm64,
-            0x0A /* rA = imm / rB    */ => self.regs[reg_a as usize] = imm64 / reg_b_value,
-            0x0B /* rA = rB / rC     */ => self.regs[reg_a as usize] = (reg_b_value as i64 / reg_c_value as i64) as u64,
-            0x0C /* rA = imm / rB    */ => self.regs[reg_a as usize] = (imm64 as i64 / reg_b_value as i64) as u64,
-            0x0D /* rA = rB / imm    */ => self.regs[reg_a as usize] = (reg_b_value as i64 / imm64 as i64) as u64,
-            0x0E /* rA = rB & rC     */ => self.regs[reg_a as usize] = reg_b_value & reg_c_value,
-            0x0F /* rA = rB | rC     */ => self.regs[reg_a as usize] = reg_b_value | reg_c_value,
-            0x10 /* rA = rB ^ rC     */ => self.regs[reg_a as usize] = reg_b_value ^ reg_c_value,
-            0x11 /* rA = !rB         */ => self.regs[reg_a as usize] = !reg_b_value,
-            0x12 /* rA = !(rB & rC)  */ => self.regs[reg_a as usize] = !(reg_b_value & reg_c_value),
-            0x13 /* rA = !(rB | rC)  */ => self.regs[reg_a as usize] = !(reg_b_value | reg_c_value),
-            0x14 /* rA = !(rB ^ rC)  */ => self.regs[reg_a as usize] = !(reg_b_value ^ reg_c_value),
-            0x15 /* rA = rB % rC     */ => self.regs[reg_a as usize] = reg_b_value % reg_c_value,
-            0x16 /* rA = rB % imm    */ => self.regs[reg_a as usize] = reg_b_value % imm64,
-            0x17 /* rA = imm % rB    */ => self.regs[reg_a as usize] = imm64 % reg_b_value,
-            0x18 /* rA = rB % rC     */ => self.regs[reg_a as usize] = (reg_b_value as i64 % reg_c_value as i64) as u64,
-            0x19 /* rA = rB % imm    */ => self.regs[reg_a as usize] = (reg_b_value as i64 % imm64 as i64) as u64,
-            0x1A /* rA = imm % rB    */ => self.regs[reg_a as usize] = (imm64 as i64 % reg_b_value as i64) as u64,
-            0x1B /* rA = rB >> rC    */ => self.regs[reg_a as usize] = reg_b_value >> reg_c_value,
-            0x1C /* rA = rB >> imm   */ => self.regs[reg_a as usize] = reg_b_value >> imm64,
-            0x1D /* rA = rB << rC    */ => self.regs[reg_a as usize] = reg_b_value << reg_c_value,
-            0x1E /* rA = rB << imm   */ => self.regs[reg_a as usize] = reg_b_value << imm64,
-            0x1F /* ror              */ => self.regs[reg_a as usize] = reg_b_value.rotate_right(1),
-            0x20 /* rol              */ => self.regs[reg_a as usize] = reg_b_value.rotate_left(1),
-            0x21 /* rA = rB          */ => self.regs[reg_a as usize] = reg_b_value,
-            0x22 /* ldi              */ => self.regs[reg_a as usize] = Self::ldi(reg_a_value, (instruction & (0b11 << 16)) >> 16, imm16),
+            0x01 /* rA = rB + rC     */ => self.exec_add(reg_a, reg_b_value, reg_c_value),
+            0x02 /* rA = rB + imm    */ => self.exec_add(reg_a, reg_b_value, imm64),
+            0x03 /* rA = rB - rC     */ => self.exec_sub(reg_a, reg_b_value, reg_c_value),
+            0x04 /* rA = rB - imm    */ => self.exec_sub(reg_a, reg_b_value, imm64),
+            0x05 /* rA = imm - rB    */ => self.exec_sub(reg_a, imm64, reg_b_value),
+            0x06 /* rA = rB * rC     */ => self.exec_mul(reg_a, reg_b_value, reg_c_value),
+            0x07 /* rA = rB * imm    */ => self.exec_mul(reg_a, reg_b_value, imm64),
+            0x08 /* rA = rB / rC  (u)*/ => self.exec_div_u(reg_a, reg_b_value, reg_c_value),
+            0x09 /* rA = rB / imm (u)*/ => self.exec_div_u(reg_a, reg_b_value, imm64),
+            0x0A /* rA = imm / rB (u)*/ => self.exec_div_u(reg_a, imm64, reg_b_value),
+            0x0B /* rA = rB / rC  (s)*/ => self.exec_div_s(reg_a, reg_b_value, reg_c_value),
+            0x0C /* rA = rB / imm (s)*/ => self.exec_div_s(reg_a, reg_b_value, imm64),
+            0x0D /* rA = imm / rB (s)*/ => self.exec_div_s(reg_a, imm64, reg_b_value),
+            0x0E /* rA = rB & rC     */ => self.regs[reg_a] = reg_b_value & reg_c_value,
+            0x0F /* rA = rB | rC     */ => self.regs[reg_a] = reg_b_value | reg_c_value,
+            0x10 /* rA = rB ^ rC     */ => self.regs[reg_a] = reg_b_value ^ reg_c_value,
+            0x11 /* rA = !rB         */ => self.regs[reg_a] = !reg_b_value,
+            0x12 /* rA = !(rB & rC)  */ => self.regs[reg_a] = !(reg_b_value & reg_c_value),
+            0x13 /* rA = !(rB | rC)  */ => self.regs[reg_a] = !(reg_b_value | reg_c_value),
+            0x14 /* rA = !(rB ^ rC)  */ => self.regs[reg_a] = !(reg_b_value ^ reg_c_value),
+            0x15 /* rA = rB % rC  (u)*/ => self.exec_mod_u(reg_a, reg_b_value, reg_c_value),
+            0x16 /* rA = rB % imm (u)*/ => self.exec_mod_u(reg_a, reg_b_value, imm64),
+            0x17 /* rA = imm % rB (u)*/ => self.exec_mod_u(reg_a, imm64, reg_b_value),
+            0x18 /* rA = rB % rC  (s)*/ => self.exec_mod_s(reg_a, reg_b_value, reg_c_value),
+            0x19 /* rA = rB % imm (s)*/ => self.exec_mod_s(reg_a, reg_b_value, imm64),
+            0x1A /* rA = imm % rB (s)*/ => self.exec_mod_s(reg_a, imm64, reg_b_value),
+            0x1B /* rA = rB >> rC    */ => self.regs[reg_a] = reg_b_value >> reg_c_value,
+            0x1C /* rA = rB >> imm   */ => self.regs[reg_a] = reg_b_value >> imm64,
+            0x1D /* rA = rB << rC    */ => self.regs[reg_a] = reg_b_value << reg_c_value,
+            0x1E /* rA = rB << imm   */ => self.regs[reg_a] = reg_b_value << imm64,
+            0x1F /* ror              */ => self.regs[reg_a] = reg_b_value.rotate_right(1),
+            0x20 /* rol              */ => self.regs[reg_a] = reg_b_value.rotate_left(1),
+            0x21 /* rA = rB          */ => self.regs[reg_a] = reg_b_value,
+            0x22 /* ldi              */ => self.regs[reg_a] = Self::ldi(reg_a_value, (instruction & (0b11 << 16)) >> 16, imm16),
             0x23 /* UNUSED           */ => unimplemented!("This opcode is unused"),
-            0x24 /* rA = memory[rB]  */ => self.regs[reg_a as usize] = Self::set_byte(reg_a_value, (instruction & 0b111) as u8, self.memory[reg_b_value as usize]),
-            0x25 /* rA = memory[imm] */ => self.regs[reg_a as usize] = Self::set_byte(reg_a_value, (instruction & 0b111) as u8, self.memory[imm16 as usize]),
+            0x24 /* rA = memory[rB]  */ => self.regs[reg_a] = Self::set_byte(reg_a_value, (instruction & 0b111) as u8, self.memory[reg_b_value as usize]),
+            0x25 /* rA = memory[imm] */ => self.regs[reg_a] = Self::set_byte(reg_a_value, (instruction & 0b111) as u8, self.memory[imm16 as usize]),
             0x26 /* memory[rB] = rA  */ => self.memory[reg_b as usize] = Self::get_byte(reg_a_value, (instruction & 0b111) as u8),
             0x27 /* memory[imm] = rA */ => self.memory[imm16 as usize] = Self::get_byte(reg_a_value, (instruction & 0b111) as u8),
             0x28 /* push             */ => unimplemented!("Push not implemented"),
@@ -163,9 +285,9 @@ impl CPU {
             0x2A /* rA.cmp(&rB)      */ => self.compare(reg_a_value, reg_b_value),
             0x2B /* rA.cmp(&imm)     */ => self.compare(reg_a_value, imm64),
             0x2C /* imm.cmp(&rA)     */ => self.compare(imm64, reg_a_value),
-            0x2D /* rA.cmp(&rB)      */ => self.signed_compare(reg_a_value as i64, reg_b_value as i64),
-            0x2E /* rA.cmp(&imm)     */ => self.signed_compare(reg_a_value as i64, imm64 as i64),
-            0x2F /* imm.cmp(&rA)     */ => self.signed_compare(imm64 as i64, reg_a_value as i64),
+            0x2D /* rA.cmp(&rB)      */ => self.compare(reg_a_value as i64, reg_b_value as i64),
+            0x2E /* rA.cmp(&imm)     */ => self.compare(reg_a_value as i64, imm64 as i64),
+            0x2F /* imm.cmp(&rA)     */ => self.compare(imm64 as i64, reg_a_value as i64),
             0x30 /* b                */ => unimplemented!("Branch by register not implemented"),
             0x31 /* b                */ => unimplemented!("Branch by immediate not implemented"),
             0x32 /* bg               */ => unimplemented!("Branch if greater by register not implemented"),
@@ -180,7 +302,7 @@ impl CPU {
             0x3B /* bne              */ => unimplemented!("Branch if not equal by immediate not implemented"),
             0x3C /* bns              */ => unimplemented!("Branch if not smaller by register not implemented"),
             0x3D /* bns              */ => unimplemented!("Branch if not smaller by immediate not implemented"),
-            _ =>  println!("Unknown opcode: {:#x}", opcode),
+            (0x3E..=0xFF) =>  println!("Unknown opcode: {:#x}", opcode),
         }
     }
 
