@@ -1,4 +1,5 @@
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 pub enum Register {
     R0 = 0,
     R1 = 1,
@@ -20,6 +21,8 @@ pub enum Register {
 
 #[derive(Debug, Copy, Clone)]
 pub struct U2 { value: u8 }
+
+#[allow(dead_code)]
 impl U2 {
     pub fn new(value: u8) -> Option<U2> {
         if value < 4 {
@@ -36,6 +39,8 @@ impl U2 {
 
 #[derive(Debug, Copy, Clone)]
 pub struct U3 { value: u8 }
+
+#[allow(dead_code)]
 impl U3 {
     pub fn new(value: u8) -> Option<U3> {
         if value < 8 {
@@ -52,6 +57,7 @@ impl U3 {
 
 #[repr(u32)]
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 pub enum Instruction {
     Nop = 0x00,
     Add { dest: Register, a: Register, b: Register } = 0x01,
