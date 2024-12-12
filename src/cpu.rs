@@ -307,13 +307,10 @@ impl CPU {
     }
 
     fn ldi(reg: u64, slice: u32, imm: u16) -> u64 {
-        match slice {
-            0 => (reg & !(0xFFFF << 0)) | ((imm as u64) << 0), // Clear bits 0-15 and set imm
-            1 => (reg & !(0xFFFF << 16)) | ((imm as u64) << 16), // Clear bits 16-31 and set imm
-            2 => (reg & !(0xFFFF << 32)) | ((imm as u64) << 32), // Clear bits 32-47 and set imm
-            3 => (reg & !(0xFFFF << 48)) | ((imm as u64) << 48), // Clear bits 48-63 and set imm
-            _ => unreachable!("If this is reached, something is wrong"),
-        }
+        assert!(slice <= 3);
+        let shift = slice * 16;
+        let mask = !(0xFFFF << shift);
+        (reg & mask) | ((imm as u64) << shift)
     }
 
     fn set_byte(v: u64, byte: u8, new: u8) -> u64 {
