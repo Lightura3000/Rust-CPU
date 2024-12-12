@@ -60,7 +60,7 @@ pub struct Flags {
     // Useful for:
     // - Conditional branching
     // - Implementing sorting algorithms
-    less: bool,
+    smaller: bool,
 }
 
 impl CPU {
@@ -78,7 +78,7 @@ impl CPU {
         let cmp = a.cmp(&b);
         self.flags.greater = cmp == Ordering::Greater;
         self.flags.equal = cmp == Ordering::Equal;
-        self.flags.less = cmp == Ordering::Less;
+        self.flags.smaller = cmp == Ordering::Less;
     }
 
     /// Executes a vector of instructions by calling `exec` on each.
