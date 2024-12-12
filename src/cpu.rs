@@ -6,6 +6,8 @@ pub struct CPU {
     pub memory: [u8; 4096],
     privileged: bool,
     halted: bool,
+    privileged: bool, /// Indicates if the CPU is running in privileged mode
+    halted: bool, /// This field will probably get removed in the future
     pub flags: Flags,
 }
 
@@ -79,7 +81,12 @@ impl CPU {
         self.flags.less = cmp == Ordering::Less;
     }
 
-    #[deprecated(note = "wasn't implemented correctly")]
+    /// Executes a vector of instructions by calling `exec` on each.
+    ///
+    /// # Deprecation
+    /// This method is deprecated because it isn't implemented correctly
+    /// (e.g., it doesn't respect a program counter, nor handle branching).
+    #[deprecated(note = "Bad implementation")]
     pub fn run(&mut self, instructions: &Vec<u32>) {
         instructions.iter().for_each(|instruction| self.exec(*instruction));
     }
@@ -307,27 +314,21 @@ impl CPU {
     }
 
     fn ldi(reg: u64, slice: u32, imm: u16) -> u64 {
-        assert!(slice <= 3);
+        assert!(slice <= 3); // TODO: This might panic for now, in the future this would trigger an interrupt
         let shift = slice * 16;
         let mask = !(0xFFFF << shift);
         (reg & mask) | ((imm as u64) << shift)
     }
 
     fn set_byte(v: u64, byte: u8, new: u8) -> u64 {
-        if !(0..8).contains(&byte) {
-            panic!("Byte index out of range (must be 0 to 7)");
-        }
-
+        assert!(byte <= 7); // TODO: This might panic for now, in the future this would trigger an interrupt
         let shift = byte * 8;
         let cleared_v = v & !(0xFFu64 << shift); // Clear target byte
         cleared_v | ((new as u64) << shift)
     }
 
     fn get_byte(v: u64, byte: u8) -> u8 {
-        if !(0..8).contains(&byte) {
-            panic!("Byte index out of range (must be 0 to 7)");
-        }
-
+        assert!(byte <= 7); // TODO: This might panic for now, in the future this would trigger an interrupt
         let shift = byte * 8;
         ((v >> shift) & 0xFF) as u8
     }
