@@ -6,8 +6,6 @@ const INSTRUCTION_POINTER: usize = 15;
 pub struct CPU {
     pub regs: [u64; 16],
     pub memory: [u8; 4096],
-    privileged: bool,
-    halted: bool,
     privileged: bool, /// Indicates if the CPU is running in privileged mode
     halted: bool, /// This field will probably get removed in the future
     pub flags: Flags,
