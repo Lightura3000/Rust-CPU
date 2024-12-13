@@ -105,7 +105,7 @@ impl CPU {
         self.flags.smaller = cmp == Ordering::Less;
     }
 
-    // A helper function to perform an unsigned arithmetic operation and set flags
+    /// A helper function to perform an unsigned arithmetic operation and set flags
     fn exec_arith_op(
         &mut self,
         reg_a: usize,
