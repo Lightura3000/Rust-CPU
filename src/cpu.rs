@@ -252,15 +252,6 @@ impl CPU {
         let reg_b_value = self.regs[reg_b as usize];
         let reg_c_value = self.regs[reg_c as usize];
 
-        // println!("Decoded values:");
-        // println!("opcode: {}", opcode);
-        // println!("reg_a: {}", reg_a);
-        // println!("reg_b: {}", reg_b);
-        // println!("reg_c: {}", reg_c);
-        // println!("reg_a value: {}", reg_a_value);
-        // println!("reg_b value: {}", reg_b_value);
-        // println!("reg_c value: {}", reg_c_value);
-
         let prev_instr_ptr = self.regs[INSTRUCTION_POINTER];
 
         match opcode {
