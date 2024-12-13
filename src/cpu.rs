@@ -408,6 +408,7 @@ impl UsableForBranch for u16 {
 }
 
 
+/// cargo test cpu -- --nocapture
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -417,17 +418,18 @@ mod tests {
     #[test]
     fn stress_test() {
         let mut cpu = CPU::new();
+        let iterations = 100_000_000;
 
-        for i in 0..4000 {
+        for i in 0..iterations {
             let random_instr = rand::thread_rng().gen_range(0x00000000..=0x3D000000);
-            println!("{}. {:#8x}", i+1, random_instr);
             cpu.exec(random_instr);
-            println!("regs: {:?}", cpu.regs);
-            println!();
+            println!("{:09}. {:#010x}", i, random_instr);
         }
 
         // Print CPU state after running random instructions
         println!("Registers after random stress test: {:?}", cpu.regs);
         println!("Flags after random stress test: {:?}", cpu.flags);
+        println!("Registers after stress test: {:?}", cpu.regs);
+        println!("Flags after stress test: {:?}", cpu.flags);
     }
 }
