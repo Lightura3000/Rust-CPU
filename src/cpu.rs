@@ -78,10 +78,6 @@ impl CPU {
         for _ in 0..cycles {
             let address = self.regs[INSTRUCTION_POINTER] as usize;
             let instruction = self.fetch_instruction(address);
-            println!("Memory: {:?}", self.memory);
-            println!("Regs: {:?}", self.regs);
-            println!("Executing {:#010x}", instruction);
-            println!();
             self.exec(instruction);
         }
     }
