@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
 
+const INSTRUCTION_POINTER: usize = 15;
+
 #[derive(Debug)]
 pub struct CPU {
     pub regs: [u64; 16],
@@ -74,21 +76,35 @@ impl CPU {
         }
     }
 
+    pub fn run(&mut self, cycles: u32) {
+        for _ in 0..cycles {
+            let address = self.regs[INSTRUCTION_POINTER] as usize;
+            let instruction = self.fetch_instruction(address);
+            println!("Memory: {:?}", self.memory);
+            println!("Regs: {:?}", self.regs);
+            println!("Executing {:#010x}", instruction);
+            println!();
+            self.exec(instruction);
+        }
+    }
+
+    pub fn set_instruction_ptr(&mut self, value: u64) {
+        self.regs[INSTRUCTION_POINTER] = value;
+    }
+
+    fn fetch_instruction(&mut self, address: usize) -> u32 {
+        let byte1 = self.memory[address] as u32;
+        let byte2 = self.memory[address + 1] as u32;
+        let byte3 = self.memory[address + 2] as u32;
+        let byte4 = self.memory[address + 3] as u32;
+        (byte1 << 24) | (byte2 << 16) | (byte3 << 8) | byte4
+    }
+
     fn compare<T: Ord>(&mut self, a: T, b: T) {
         let cmp = a.cmp(&b);
         self.flags.greater = cmp == Ordering::Greater;
         self.flags.equal = cmp == Ordering::Equal;
         self.flags.smaller = cmp == Ordering::Less;
-    }
-
-    /// Executes a vector of instructions by calling `exec` on each.
-    ///
-    /// # Deprecation
-    /// This method is deprecated because it isn't implemented correctly
-    /// (e.g., it doesn't respect a program counter, nor handle branching).
-    #[deprecated(note = "Bad implementation")]
-    pub fn run(&mut self, instructions: &Vec<u32>) {
-        instructions.iter().for_each(|instruction| self.exec(*instruction));
     }
 
     // A helper function to perform an unsigned arithmetic operation and set flags
@@ -196,7 +212,7 @@ impl CPU {
         }
     }
 
-    // Helper for signed modulo: rA = lhs % rhs (signed)
+    /// Helper for signed modulo: rA = lhs % rhs (signed)
     fn exec_mod_s(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
         let lhs_i = lhs as i64;
         let rhs_i = rhs as i64;
@@ -232,6 +248,7 @@ impl CPU {
         let reg_c = ((instruction & REG_C_MASK) >> REG_C_MASK.trailing_zeros()) as u8;
         let imm16 = (instruction & IMMEDIATE_MASK) as u16;
         let imm64 = (instruction & IMMEDIATE_MASK) as u64;
+        let byte_pos = (instruction & 0b111) as u8;
 
         let reg_a_value = self.regs[reg_a];
         let reg_b_value = self.regs[reg_b as usize];
@@ -246,71 +263,126 @@ impl CPU {
         // println!("reg_b value: {}", reg_b_value);
         // println!("reg_c value: {}", reg_c_value);
 
+        let prev_instr_ptr = self.regs[INSTRUCTION_POINTER];
+
         match opcode {
-            0x00 /* nop              */ => {},
-            0x01 /* rA = rB + rC     */ => self.exec_add(reg_a, reg_b_value, reg_c_value),
-            0x02 /* rA = rB + imm    */ => self.exec_add(reg_a, reg_b_value, imm64),
-            0x03 /* rA = rB - rC     */ => self.exec_sub(reg_a, reg_b_value, reg_c_value),
-            0x04 /* rA = rB - imm    */ => self.exec_sub(reg_a, reg_b_value, imm64),
-            0x05 /* rA = imm - rB    */ => self.exec_sub(reg_a, imm64, reg_b_value),
-            0x06 /* rA = rB * rC     */ => self.exec_mul(reg_a, reg_b_value, reg_c_value),
-            0x07 /* rA = rB * imm    */ => self.exec_mul(reg_a, reg_b_value, imm64),
-            0x08 /* rA = rB / rC  (u)*/ => self.exec_div_u(reg_a, reg_b_value, reg_c_value),
-            0x09 /* rA = rB / imm (u)*/ => self.exec_div_u(reg_a, reg_b_value, imm64),
-            0x0A /* rA = imm / rB (u)*/ => self.exec_div_u(reg_a, imm64, reg_b_value),
-            0x0B /* rA = rB / rC  (s)*/ => self.exec_div_s(reg_a, reg_b_value, reg_c_value),
-            0x0C /* rA = rB / imm (s)*/ => self.exec_div_s(reg_a, reg_b_value, imm64),
-            0x0D /* rA = imm / rB (s)*/ => self.exec_div_s(reg_a, imm64, reg_b_value),
-            0x0E /* rA = rB & rC     */ => self.regs[reg_a] = reg_b_value & reg_c_value,
-            0x0F /* rA = rB | rC     */ => self.regs[reg_a] = reg_b_value | reg_c_value,
-            0x10 /* rA = rB ^ rC     */ => self.regs[reg_a] = reg_b_value ^ reg_c_value,
-            0x11 /* rA = !rB         */ => self.regs[reg_a] = !reg_b_value,
-            0x12 /* rA = !(rB & rC)  */ => self.regs[reg_a] = !(reg_b_value & reg_c_value),
-            0x13 /* rA = !(rB | rC)  */ => self.regs[reg_a] = !(reg_b_value | reg_c_value),
-            0x14 /* rA = !(rB ^ rC)  */ => self.regs[reg_a] = !(reg_b_value ^ reg_c_value),
-            0x15 /* rA = rB % rC  (u)*/ => self.exec_mod_u(reg_a, reg_b_value, reg_c_value),
-            0x16 /* rA = rB % imm (u)*/ => self.exec_mod_u(reg_a, reg_b_value, imm64),
-            0x17 /* rA = imm % rB (u)*/ => self.exec_mod_u(reg_a, imm64, reg_b_value),
-            0x18 /* rA = rB % rC  (s)*/ => self.exec_mod_s(reg_a, reg_b_value, reg_c_value),
-            0x19 /* rA = rB % imm (s)*/ => self.exec_mod_s(reg_a, reg_b_value, imm64),
-            0x1A /* rA = imm % rB (s)*/ => self.exec_mod_s(reg_a, imm64, reg_b_value),
-            0x1B /* rA = rB >> rC    */ => self.regs[reg_a] = reg_b_value >> reg_c_value,
-            0x1C /* rA = rB >> imm   */ => self.regs[reg_a] = reg_b_value >> imm64,
-            0x1D /* rA = rB << rC    */ => self.regs[reg_a] = reg_b_value << reg_c_value,
-            0x1E /* rA = rB << imm   */ => self.regs[reg_a] = reg_b_value << imm64,
-            0x1F /* ror              */ => self.regs[reg_a] = reg_b_value.rotate_right(1),
-            0x20 /* rol              */ => self.regs[reg_a] = reg_b_value.rotate_left(1),
-            0x21 /* rA = rB          */ => self.regs[reg_a] = reg_b_value,
-            0x22 /* ldi              */ => self.regs[reg_a] = Self::ldi(reg_a_value, (instruction & (0b11 << 16)) >> 16, imm16),
-            0x23 /* UNUSED           */ => unimplemented!("This opcode is unused"),
-            0x24 /* rA = memory[rB]  */ => self.regs[reg_a] = Self::set_byte(reg_a_value, (instruction & 0b111) as u8, self.memory[reg_b_value as usize]),
-            0x25 /* rA = memory[imm] */ => self.regs[reg_a] = Self::set_byte(reg_a_value, (instruction & 0b111) as u8, self.memory[imm16 as usize]),
-            0x26 /* memory[rB] = rA  */ => self.memory[reg_b as usize] = Self::get_byte(reg_a_value, (instruction & 0b111) as u8),
-            0x27 /* memory[imm] = rA */ => self.memory[imm16 as usize] = Self::get_byte(reg_a_value, (instruction & 0b111) as u8),
-            0x28 /* push             */ => unimplemented!("Push not implemented"),
-            0x29 /* pop              */ => unimplemented!("Pop not implemented"),
-            0x2A /* rA.cmp(&rB)      */ => self.compare(reg_a_value, reg_b_value),
-            0x2B /* rA.cmp(&imm)     */ => self.compare(reg_a_value, imm64),
-            0x2C /* imm.cmp(&rA)     */ => self.compare(imm64, reg_a_value),
-            0x2D /* rA.cmp(&rB)      */ => self.compare(reg_a_value as i64, reg_b_value as i64),
-            0x2E /* rA.cmp(&imm)     */ => self.compare(reg_a_value as i64, imm64 as i64),
-            0x2F /* imm.cmp(&rA)     */ => self.compare(imm64 as i64, reg_a_value as i64),
-            0x30 /* b                */ => unimplemented!("Branch by register not implemented"),
-            0x31 /* b                */ => unimplemented!("Branch by immediate not implemented"),
-            0x32 /* bg               */ => unimplemented!("Branch if greater by register not implemented"),
-            0x33 /* bg               */ => unimplemented!("Branch if greater by immediate not implemented"),
-            0x34 /* be               */ => unimplemented!("Branch if equal by register not implemented"),
-            0x35 /* be               */ => unimplemented!("Branch if equal by immediate not implemented"),
-            0x36 /* bs               */ => unimplemented!("Branch if smaller by register not implemented"),
-            0x37 /* bs               */ => unimplemented!("Branch if smaller by immediate not implemented"),
-            0x38 /* bng              */ => unimplemented!("Branch if not greater by register not implemented"),
-            0x39 /* bng              */ => unimplemented!("Branch if not greater by immediate not implemented"),
-            0x3A /* bne              */ => unimplemented!("Branch if not equal by register not implemented"),
-            0x3B /* bne              */ => unimplemented!("Branch if not equal by immediate not implemented"),
-            0x3C /* bns              */ => unimplemented!("Branch if not smaller by register not implemented"),
-            0x3D /* bns              */ => unimplemented!("Branch if not smaller by immediate not implemented"),
+            0x00 /* nop                        */ => {},
+            0x01 /* rA = rB + rC               */ => self.exec_add(reg_a, reg_b_value, reg_c_value),
+            0x02 /* rA = rB + imm              */ => self.exec_add(reg_a, reg_b_value, imm64),
+            0x03 /* rA = rB - rC               */ => self.exec_sub(reg_a, reg_b_value, reg_c_value),
+            0x04 /* rA = rB - imm              */ => self.exec_sub(reg_a, reg_b_value, imm64),
+            0x05 /* rA = imm - rB              */ => self.exec_sub(reg_a, imm64, reg_b_value),
+            0x06 /* rA = rB * rC               */ => self.exec_mul(reg_a, reg_b_value, reg_c_value),
+            0x07 /* rA = rB * imm              */ => self.exec_mul(reg_a, reg_b_value, imm64),
+            0x08 /* rA = rB / rC    (unsigned) */ => self.exec_div_u(reg_a, reg_b_value, reg_c_value),
+            0x09 /* rA = rB / imm   (unsigned) */ => self.exec_div_u(reg_a, reg_b_value, imm64),
+            0x0A /* rA = imm / rB   (unsigned) */ => self.exec_div_u(reg_a, imm64, reg_b_value),
+            0x0B /* rA = rB / rC    (signed)   */ => self.exec_div_s(reg_a, reg_b_value, reg_c_value),
+            0x0C /* rA = rB / imm   (signed)   */ => self.exec_div_s(reg_a, reg_b_value, imm64),
+            0x0D /* rA = imm / rB   (signed)   */ => self.exec_div_s(reg_a, imm64, reg_b_value),
+            0x0E /* rA = rB & rC               */ => self.regs[reg_a] = reg_b_value & reg_c_value,
+            0x0F /* rA = rB | rC               */ => self.regs[reg_a] = reg_b_value | reg_c_value,
+            0x10 /* rA = rB ^ rC               */ => self.regs[reg_a] = reg_b_value ^ reg_c_value,
+            0x11 /* rA = !rB                   */ => self.regs[reg_a] = !reg_b_value,
+            0x12 /* rA = !(rB & rC)            */ => self.regs[reg_a] = !(reg_b_value & reg_c_value),
+            0x13 /* rA = !(rB | rC)            */ => self.regs[reg_a] = !(reg_b_value | reg_c_value),
+            0x14 /* rA = !(rB ^ rC)            */ => self.regs[reg_a] = !(reg_b_value ^ reg_c_value),
+            0x15 /* rA = rB % rC    (unsigned) */ => self.exec_mod_u(reg_a, reg_b_value, reg_c_value),
+            0x16 /* rA = rB % imm   (unsigned) */ => self.exec_mod_u(reg_a, reg_b_value, imm64),
+            0x17 /* rA = imm % rB   (unsigned) */ => self.exec_mod_u(reg_a, imm64, reg_b_value),
+            0x18 /* rA = rB % rC    (signed)   */ => self.exec_mod_s(reg_a, reg_b_value, reg_c_value),
+            0x19 /* rA = rB % imm   (signed)   */ => self.exec_mod_s(reg_a, reg_b_value, imm64),
+            0x1A /* rA = imm % rB   (signed)   */ => self.exec_mod_s(reg_a, imm64, reg_b_value),
+            0x1B /* rA = rB >> rC              */ => self.regs[reg_a] = reg_b_value >> reg_c_value,
+            0x1C /* rA = rB >> imm             */ => self.regs[reg_a] = reg_b_value >> imm64,
+            0x1D /* rA = rB << rC              */ => self.regs[reg_a] = reg_b_value << reg_c_value,
+            0x1E /* rA = rB << imm             */ => self.regs[reg_a] = reg_b_value << imm64,
+            0x1F /* ror                        */ => self.regs[reg_a] = reg_b_value.rotate_right(1),
+            0x20 /* rol                        */ => self.regs[reg_a] = reg_b_value.rotate_left(1),
+            0x21 /* rA = rB                    */ => self.regs[reg_a] = reg_b_value,
+            0x22 /* ldi                        */ => self.regs[reg_a] = Self::ldi(reg_a_value, (instruction & (0b11 << 16)) >> 16, imm16),
+            0x23 /* UNUSED                     */ => unimplemented!("This opcode is unused"),
+            0x24 /* rA = memory[rB]            */ => self.load_memory_to_register(reg_a, reg_b_value, byte_pos),
+            0x25 /* rA = memory[imm]           */ => self.load_memory_to_register_imm(reg_a, imm16, byte_pos),
+            0x26 /* memory[rB] = rA            */ => self.store_register_to_memory(self.regs[reg_a], reg_b_value, byte_pos),
+            0x27 /* memory[imm] = rA           */ => self.store_register_to_memory_imm(self.regs[reg_a], imm16, byte_pos),
+            0x28 /* push                       */ => unimplemented!("Push not implemented"),
+            0x29 /* pop                        */ => unimplemented!("Pop not implemented"),
+            0x2A /* rA.cmp(rB)      (unsigned) */ => self.compare(reg_a_value, reg_b_value),
+            0x2B /* rA.cmp(imm)     (unsigned) */ => self.compare(reg_a_value, imm64),
+            0x2C /* imm.cmp(rA)     (unsigned) */ => self.compare(imm64, reg_a_value),
+            0x2D /* rA.cmp(rB)      (signed)   */ => self.compare(reg_a_value as i64, reg_b_value as i64),
+            0x2E /* rA.cmp(imm)     (signed)   */ => self.compare(reg_a_value as i64, imm64 as i64),
+            0x2F /* imm.cmp(rA)     (signed)   */ => self.compare(imm64 as i64, reg_a_value as i64),
+            0x30 /* b                          */ => self.branch(true, reg_a_value),
+            0x31 /* b                          */ => self.branch(true, imm16),
+            0x32 /* bg                         */ => self.branch(self.flags.greater, reg_a_value),
+            0x33 /* bg                         */ => self.branch(self.flags.greater, imm16),
+            0x34 /* be                         */ => self.branch(self.flags.equal, reg_a_value),
+            0x35 /* be                         */ => self.branch(self.flags.greater, imm16),
+            0x36 /* bs                         */ => self.branch(self.flags.smaller, reg_a_value),
+            0x37 /* bs                         */ => self.branch(self.flags.smaller, imm16),
+            0x38 /* bng                        */ => self.branch(!self.flags.greater, reg_a_value),
+            0x39 /* bng                        */ => self.branch(!self.flags.greater, imm16),
+            0x3A /* bne                        */ => self.branch(!self.flags.equal, reg_a_value),
+            0x3B /* bne                        */ => self.branch(!self.flags.equal, imm16),
+            0x3C /* bns                        */ => self.branch(!self.flags.smaller, reg_a_value),
+            0x3D /* bns                        */ => self.branch(!self.flags.smaller, imm16),
             (0x3E..=0xFF) =>  println!("Unknown opcode: {:#x}", opcode),
         }
+
+        let curr_instr_ptr = self.regs[INSTRUCTION_POINTER];
+
+        if prev_instr_ptr == curr_instr_ptr {
+            self.regs[INSTRUCTION_POINTER] += 4;
+        }
+    }
+
+    fn branch<T: UsableForBranch>(&mut self, condition: bool, offset: T) {
+        if condition {
+            let current_ip = self.regs[INSTRUCTION_POINTER] as i64;
+            self.regs[INSTRUCTION_POINTER] = (current_ip + 4 * offset.to_i64()) as u64;
+        }
+    }
+
+    /// Load a byte from memory at the address in `reg_b`, modify the specified byte in `reg_a`.
+    fn load_memory_to_register(&mut self, reg_a: usize, reg_b_value: u64, byte_pos: u8) {
+        let address = reg_b_value as usize;
+        if address >= self.memory.len() {
+            println!("Memory access out of bounds: address {}", address);
+            return;
+        }
+        self.regs[reg_a] = Self::set_byte(self.regs[reg_a], byte_pos, self.memory[address]);
+    }
+
+    /// Load a byte from memory at the immediate address, modify the specified byte in `reg_a`.
+    fn load_memory_to_register_imm(&mut self, reg_a: usize, imm16: u16, byte_pos: u8) {
+        let address = imm16 as usize;
+        if address >= self.memory.len() {
+            println!("Memory access out of bounds: address {}", address);
+            return;
+        }
+        self.regs[reg_a] = Self::set_byte(self.regs[reg_a], byte_pos, self.memory[address]);
+    }
+
+    /// Store a byte from `reg_a` into memory at the address in `reg_b`.
+    fn store_register_to_memory(&mut self, reg_a_value: u64, reg_b_value: u64, byte_pos: u8) {
+        let address = reg_b_value as usize;
+        if address >= self.memory.len() {
+            println!("Memory access out of bounds: address {}", address);
+            return;
+        }
+        self.memory[address] = Self::get_byte(reg_a_value, byte_pos);
+    }
+
+    /// Store a byte from `reg_a` into memory at the immediate address.
+    fn store_register_to_memory_imm(&mut self, reg_a_value: u64, imm16: u16, byte_pos: u8) {
+        let address = imm16 as usize;
+        if address >= self.memory.len() {
+            println!("Memory access out of bounds: address {}", address);
+            return;
+        }
+        self.memory[address] = Self::get_byte(reg_a_value, byte_pos);
     }
 
     fn ldi(reg: u64, slice: u32, imm: u16) -> u64 {
@@ -331,5 +403,46 @@ impl CPU {
         assert!(byte <= 7); // TODO: This might panic for now, in the future this would trigger an interrupt
         let shift = byte * 8;
         ((v >> shift) & 0xFF) as u8
+    }
+}
+
+trait UsableForBranch {
+    fn to_i64(self) -> i64;
+}
+
+impl UsableForBranch for u64 {
+    fn to_i64(self) -> i64 {
+        self as i64
+    }
+}
+
+impl UsableForBranch for u16 {
+    fn to_i64(self) -> i64 {
+        self as i16 as i64
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand;
+    use rand::Rng;
+
+    #[test]
+    fn stress_test() {
+        let mut cpu = CPU::new();
+
+        for i in 0..4000 {
+            let random_instr = rand::thread_rng().gen_range(0x00000000..=0x3D000000);
+            println!("{}. {:#8x}", i+1, random_instr);
+            cpu.exec(random_instr);
+            println!("regs: {:?}", cpu.regs);
+            println!();
+        }
+
+        // Print CPU state after running random instructions
+        println!("Registers after random stress test: {:?}", cpu.regs);
+        println!("Flags after random stress test: {:?}", cpu.flags);
     }
 }
