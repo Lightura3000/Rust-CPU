@@ -332,7 +332,7 @@ impl CPU {
         let curr_instr_ptr = self.regs[INSTRUCTION_POINTER];
 
         if prev_instr_ptr == curr_instr_ptr {
-            self.regs[INSTRUCTION_POINTER] += 4;
+            self.regs[INSTRUCTION_POINTER] = self.regs[INSTRUCTION_POINTER].wrapping_add(4);
         }
     }
 
