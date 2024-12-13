@@ -224,7 +224,7 @@ impl CPU {
             self.flags.overflow = true;
         } else {
             // Unlike division, (i64::MIN % -1) = 0, which doesn't overflow.
-            let result_i = lhs_i % rhs_i;
+            let result_i = lhs_i.wrapping_rem(rhs_i);
             self.regs[reg_a] = result_i as u64;
             self.flags.carry = false;
             self.flags.zero = result_i == 0;
