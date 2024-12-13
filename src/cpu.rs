@@ -177,7 +177,7 @@ impl CPU {
             if lhs == i64::MIN && rhs == -1 {
                 // In many architectures this causes an arithmetic exception.
                 // Here, we treat it as overflow.
-                self.regs[reg_a] = (lhs / rhs) as u64;
+                self.regs[reg_a] = lhs.wrapping_div(rhs) as u64;
                 self.flags.overflow = true;
             } else {
                 self.regs[reg_a] = (lhs / rhs) as u64;
