@@ -339,7 +339,7 @@ impl CPU {
     fn branch<T: UsableForBranch>(&mut self, condition: bool, offset: T) {
         if condition {
             let current_ip = self.regs[INSTRUCTION_POINTER] as i64;
-            self.regs[INSTRUCTION_POINTER] = (current_ip + 4 * offset.to_i64()) as u64;
+            self.regs[INSTRUCTION_POINTER] = offset.to_i64().wrapping_mul(4).wrapping_add(current_ip) as u64;
         }
     }
 
