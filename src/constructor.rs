@@ -55,6 +55,24 @@ impl U3 {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct U6 { value: u8 }
+
+#[allow(dead_code)]
+impl U6 {
+    pub fn new(value: u8) -> Option<U6> {
+        if value < 64 {
+            Some( U6 { value })
+        } else {
+            None
+        }
+    }
+
+    pub fn get(&self) -> u8 {
+        self.value
+    }
+}
+
 #[repr(u32)]
 #[derive(Debug, Copy, Clone)]
 #[allow(dead_code)]
@@ -87,9 +105,9 @@ pub enum Instruction {
     SmodRI { dest: Register, a: Register, b: u16 } = 0x19,
     SmodIR { dest: Register, a: u16, b: Register } = 0x1A,
     RshR { reg: Register, amount: Register } = 0x1B,
-    RshI { reg: Register, amount: u8 } = 0x1C,
+    RshI { reg: Register, amount: U6 } = 0x1C,
     LshR { reg: Register, amount:  Register } = 0x1D,
-    LshI { reg: Register, amount: u8 } = 0x1E,
+    LshI { reg: Register, amount: U6 } = 0x1E,
     Ror { reg: Register } = 0x1F,
     Rol { reg: Register } = 0x20,
     Mov { dest: Register, src: Register } = 0x21,
@@ -126,7 +144,6 @@ pub enum Instruction {
 
 impl Instruction {
     pub fn assemble(self) -> u32 {
-        // println!("{:#010x}\n{:#010x}\n{:#010x}\n{:#010x}", 0x01000000, (dest as u32) << 20, (a as u32) << 16, (b as u32) << 12);
         match self {
             Instruction::Nop => 0,
             Instruction::Add { dest, a, b } => 0x01000000 | (dest.safe_to_u32() << 20) | (a.safe_to_u32() << 16) | (b.safe_to_u32() << 12),
@@ -156,9 +173,9 @@ impl Instruction {
             Instruction::SmodRI { dest, a, b } => 0x19000000 | (dest.safe_to_u32() << 20) | (a.safe_to_u32() << 16) | b.safe_to_u32(),
             Instruction::SmodIR { dest, a, b } => 0x1A000000 | (dest.safe_to_u32() << 20) | a.safe_to_u32() | (b.safe_to_u32() << 16),
             Instruction::RshR { reg, amount } => 0x1B000000 | (reg.safe_to_u32() << 20) | (amount.safe_to_u32() << 16),
-            Instruction::RshI { reg, amount } => 0x1C000000 | (reg.safe_to_u32() << 20) | (amount as u32),
+            Instruction::RshI { reg, amount } => 0x1C000000 | (reg.safe_to_u32() << 20) | (amount.get() as u32),
             Instruction::LshR { reg, amount } => 0x1D000000 | (reg.safe_to_u32() << 20) | (amount.safe_to_u32() << 16),
-            Instruction::LshI { reg, amount } => 0x1E000000 | (reg.safe_to_u32() << 20) | (amount as u32),
+            Instruction::LshI { reg, amount } => 0x1E000000 | (reg.safe_to_u32() << 20) | (amount.get() as u32),
             Instruction::Ror { reg } => 0x1F000000 | (reg.safe_to_u32() << 20),
             Instruction::Rol { reg } => 0x20000000 | (reg.safe_to_u32() << 20),
             Instruction::Mov { dest, src } => 0x21000000 | (dest.safe_to_u32() << 20) | (src.safe_to_u32() << 16),
