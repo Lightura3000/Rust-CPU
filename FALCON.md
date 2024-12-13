@@ -200,7 +200,7 @@ VALCON (VAriable Length COmputatiON)
 - **Encoding:** `0x1dABC000`
 
 
-- **Opcode:** `0x1e`
+- **Opcode:** `0x1E`
 - **Description:** Left shifts bits in a register by an 8 bit immediate
 - **Pseudocode:** `rA = rA << imm`
 - **Encoding:** `0x1eAB00II`
