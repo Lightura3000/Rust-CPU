@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-const INSTRUCTION_POINTER: usize = 15;
+const INSTR_PTR: usize = 15;
 
 #[derive(Debug)]
 pub struct CPU {
@@ -76,14 +76,14 @@ impl CPU {
 
     pub fn run(&mut self, cycles: u32) {
         for _ in 0..cycles {
-            let address = self.regs[INSTRUCTION_POINTER] as usize;
+            let address = self.regs[INSTR_PTR] as usize;
             let instruction = self.fetch_instruction(address);
             self.exec(instruction);
         }
     }
 
     pub fn set_instruction_ptr(&mut self, value: u64) {
-        self.regs[INSTRUCTION_POINTER] = value;
+        self.regs[INSTR_PTR] = value;
     }
 
     fn fetch_instruction(&mut self, address: usize) -> u32 {
@@ -242,13 +242,13 @@ impl CPU {
         let reg_c = ((instruction & REG_C_MASK) >> REG_C_MASK.trailing_zeros()) as u8;
         let imm16 = (instruction & IMMEDIATE_MASK) as u16;
         let imm64 = (instruction & IMMEDIATE_MASK) as u64;
-        let byte_pos = (instruction & 0b111) as u8;
+        let three_bits = (instruction & 0b111) as u8;
 
         let reg_a_value = self.regs[reg_a];
         let reg_b_value = self.regs[reg_b as usize];
         let reg_c_value = self.regs[reg_c as usize];
 
-        let prev_instr_ptr = self.regs[INSTRUCTION_POINTER];
+        let prev_instr_ptr = self.regs[INSTR_PTR];
 
         match opcode {
             0x00 /* nop                        */ => {},
@@ -287,10 +287,10 @@ impl CPU {
             0x21 /* rA = rB                    */ => self.regs[reg_a] = reg_b_value,
             0x22 /* ldi                        */ => self.regs[reg_a] = Self::ldi(reg_a_value, (instruction & (0b11 << 16)) >> 16, imm16),
             0x23 /* UNUSED                     */ => unimplemented!("This opcode is unused"),
-            0x24 /* rA = memory[rB]            */ => self.load_memory_to_register(reg_a, reg_b_value, byte_pos),
-            0x25 /* rA = memory[imm]           */ => self.load_memory_to_register_imm(reg_a, imm16, byte_pos),
-            0x26 /* memory[rB] = rA            */ => self.store_register_to_memory(self.regs[reg_a], reg_b_value, byte_pos),
-            0x27 /* memory[imm] = rA           */ => self.store_register_to_memory_imm(self.regs[reg_a], imm16, byte_pos),
+            0x24 /* rA = memory[rB]            */ => self.load_memory_to_register(reg_a, reg_b_value, three_bits),
+            0x25 /* rA = memory[imm]           */ => self.load_memory_to_register_imm(reg_a, imm16, three_bits),
+            0x26 /* memory[rB] = rA            */ => self.store_register_to_memory(self.regs[reg_a], reg_b_value, three_bits),
+            0x27 /* memory[imm] = rA           */ => self.store_register_to_memory_imm(self.regs[reg_a], imm16, three_bits),
             0x28 /* push                       */ => unimplemented!("Push not implemented"),
             0x29 /* pop                        */ => unimplemented!("Pop not implemented"),
             0x2A /* rA.cmp(rB)      (unsigned) */ => self.compare(reg_a_value, reg_b_value),
@@ -313,20 +313,20 @@ impl CPU {
             0x3B /* bne                        */ => self.branch(!self.flags.equal, imm16),
             0x3C /* bns                        */ => self.branch(!self.flags.smaller, reg_a_value),
             0x3D /* bns                        */ => self.branch(!self.flags.smaller, imm16),
-            (0x3E..=0xFF) =>  println!("Unknown opcode: {:#x}", opcode),
+            (0x3E..=0xFF) => unimplemented!("Unknown opcode: {:#x}", opcode),
         }
 
-        let curr_instr_ptr = self.regs[INSTRUCTION_POINTER];
+        let curr_instr_ptr = self.regs[INSTR_PTR];
 
         if prev_instr_ptr == curr_instr_ptr {
-            self.regs[INSTRUCTION_POINTER] = self.regs[INSTRUCTION_POINTER].wrapping_add(4);
+            self.regs[INSTR_PTR] = self.regs[INSTR_PTR].wrapping_add(4);
         }
     }
 
     fn branch<T: UsableForBranch>(&mut self, condition: bool, offset: T) {
         if condition {
-            let current_ip = self.regs[INSTRUCTION_POINTER] as i64;
-            self.regs[INSTRUCTION_POINTER] = offset.to_i64().wrapping_mul(4).wrapping_add(current_ip) as u64;
+            let current_ip = self.regs[INSTR_PTR] as i64;
+            self.regs[INSTR_PTR] = offset.to_i64().wrapping_mul(4).wrapping_add(current_ip) as u64;
         }
     }
 
@@ -426,9 +426,6 @@ mod tests {
             println!("{:09}. {:#010x}", i, random_instr);
         }
 
-        // Print CPU state after running random instructions
-        println!("Registers after random stress test: {:?}", cpu.regs);
-        println!("Flags after random stress test: {:?}", cpu.flags);
         println!("Registers after stress test: {:?}", cpu.regs);
         println!("Flags after stress test: {:?}", cpu.flags);
     }
