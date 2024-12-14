@@ -189,9 +189,9 @@ VALCON (VAriable Length COmputatiON)
 
 
 - **Opcode:** `0x1C`
-- **Description:** Right shifts bits in a register by an 8 bit immediate
+- **Description:** Right shifts bits in a register by a 6 bit immediate
 - **Pseudocode:** `rA = rA >> imm`
-- **Encoding:** `0x1cAB00II`
+- **Encoding:** `0001 1100 AAAA BBBB 0000 0000 00II IIII`
 
 ## Left shift (`lsh`)
 - **Opcode:** `0x1D`
@@ -201,9 +201,9 @@ VALCON (VAriable Length COmputatiON)
 
 
 - **Opcode:** `0x1E`
-- **Description:** Left shifts bits in a register by an 8 bit immediate
+- **Description:** Left shifts bits in a register by a 6 bit immediate
 - **Pseudocode:** `rA = rA << imm`
-- **Encoding:** `0x1eAB00II`
+- **Encoding:** `0001 1110 AAAA BBBB 0000 0000 00II IIII`
 
 ## Right roll (`ror`)
 - **Opcode:** `0x1F`

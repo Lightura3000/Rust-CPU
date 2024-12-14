@@ -243,6 +243,7 @@ impl CPU {
         let imm16 = (instruction & IMMEDIATE_MASK) as u16;
         let imm64 = (instruction & IMMEDIATE_MASK) as u64;
         let three_bits = (instruction & 0b111) as u8;
+        let six_bits = instruction & 0b111111;
 
         let reg_a_value = self.regs[reg_a];
         let reg_b_value = self.regs[reg_b as usize];
@@ -279,9 +280,9 @@ impl CPU {
             0x19 /* rA = rB % imm   (signed)   */ => self.exec_mod_s(reg_a, reg_b_value, imm64),
             0x1A /* rA = imm % rB   (signed)   */ => self.exec_mod_s(reg_a, imm64, reg_b_value),
             0x1B /* rA = rB >> rC              */ => self.regs[reg_a] = reg_b_value.checked_shr(reg_c_value as u32).unwrap_or(0),
-            0x1C /* rA = rB >> imm             */ => self.regs[reg_a] = reg_b_value.checked_shr(imm64 as u32).unwrap_or(0),
+            0x1C /* rA = rB >> imm             */ => self.regs[reg_a] = reg_b_value.checked_shr(six_bits).unwrap_or(0),
             0x1D /* rA = rB << rC              */ => self.regs[reg_a] = reg_b_value.checked_shl(reg_c_value as u32).unwrap_or(0),
-            0x1E /* rA = rB << imm             */ => self.regs[reg_a] = reg_b_value.checked_shl(imm64 as u32).unwrap_or(0),
+            0x1E /* rA = rB << imm             */ => self.regs[reg_a] = reg_b_value.checked_shl(six_bits).unwrap_or(0),
             0x1F /* ror                        */ => self.regs[reg_a] = reg_b_value.rotate_right(1),
             0x20 /* rol                        */ => self.regs[reg_a] = reg_b_value.rotate_left(1),
             0x21 /* rA = rB                    */ => self.regs[reg_a] = reg_b_value,
