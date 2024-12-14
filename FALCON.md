@@ -1,15 +1,4 @@
-```
-Fixed width:
-FLEX - Fixed Length Execution
-FINE - Fixed Instruction Narrow Execution
-FRIC - Fixed Register Instruction Core
-FALCON (Fixed ALigned COmputatioN)
 
-Variable width:
-VETRA (short, crisp, and could imply vector adaptability)
-VARICORE (Variable Core—emphasizing the shifting instruction width at the heart)
-VALCON (VAriable Length COmputatiON)
-```
 
 ```
 - **Opcode:** `0x`
@@ -360,10 +349,25 @@ VALCON (VAriable Length COmputatiON)
 - **Pseudocode:** `TODO`
 - **Encoding:** `0x3700IIII`
 
+### Branch if greater than or equal (`bge`) 
+- **Opcode:** `0x38`
+- **Description:** Offsets the instruction pointer by a 16-bit immediate (signed) if the greater flag is not set
+- **Pseudocode:** `TODO`
+- **Encoding:** `0x3800IIII`
 
-### `bge` - Branch if greater than or equal
-### `bne` - Branch if not equal
-### `bse` - Branch if smaller or equal
+### Branch if not equal (`bne`)
+- **Opcode:** `0x39`
+- **Description:** Offsets the instruction pointer by a 16-bit immediate (signed) if the equal flag is not set
+- **Pseudocode:** `TODO`
+- **Encoding:** `0x3900IIII`
+
+### Branch if smaller or equal (`bse`)
+- **Opcode:** `0x3A`
+- **Description:** Offsets the instruction pointer by a 16-bit immediate (signed) if the smaller flag is not set
+- **Pseudocode:** `TODO`
+- **Encoding:** `0x3A00IIII`
+
+
 ### `int` - Trigger a software interrupt
 
 
