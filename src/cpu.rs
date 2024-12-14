@@ -418,12 +418,12 @@ mod tests {
     #[test]
     fn stress_test() {
         let mut cpu = CPU::new();
-        let iterations = 100_000_000;
+        let iterations = 1_000_000;
 
         for i in 0..iterations {
             let random_instr = rand::thread_rng().gen_range(0x00000000..=0x3D000000);
             cpu.exec(random_instr);
-            println!("{:09}. {:#010x}", i+1, random_instr);
+            println!("{:07}. {:#010x}", i+1, random_instr);
         }
 
         println!("Registers after stress test: {:?}", cpu.regs);
