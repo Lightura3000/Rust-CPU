@@ -300,21 +300,21 @@ impl CPU {
             0x2D /* rA.cmp(rB)      (signed)   */ => self.compare(reg_a_value as i64, reg_b_value as i64),
             0x2E /* rA.cmp(imm)     (signed)   */ => self.compare(reg_a_value as i64, imm64 as i64),
             0x2F /* imm.cmp(rA)     (signed)   */ => self.compare(imm64 as i64, reg_a_value as i64),
-            0x30 /* b                          */ => self.branch(true, reg_a_value),
-            0x31 /* b                          */ => self.branch(true, imm16),
-            0x32 /* bg                         */ => self.branch(self.flags.greater, reg_a_value),
-            0x33 /* bg                         */ => self.branch(self.flags.greater, imm16),
-            0x34 /* be                         */ => self.branch(self.flags.equal, reg_a_value),
-            0x35 /* be                         */ => self.branch(self.flags.greater, imm16),
-            0x36 /* bs                         */ => self.branch(self.flags.smaller, reg_a_value),
-            0x37 /* bs                         */ => self.branch(self.flags.smaller, imm16),
-            0x38 /* bng                        */ => self.branch(!self.flags.greater, reg_a_value),
-            0x39 /* bng                        */ => self.branch(!self.flags.greater, imm16),
-            0x3A /* bne                        */ => self.branch(!self.flags.equal, reg_a_value),
-            0x3B /* bne                        */ => self.branch(!self.flags.equal, imm16),
-            0x3C /* bns                        */ => self.branch(!self.flags.smaller, reg_a_value),
-            0x3D /* bns                        */ => self.branch(!self.flags.smaller, imm16),
-            (0x3E..=0xFF) => { #[cfg(test)] { println!("Unknown opcode: {:#x}", opcode) } #[cfg(not(test))] { unimplemented!("Unknown opcode") } },
+            0x30 /* b                          */ => self.branch_u64(true, reg_a_value),
+            0x31 /* b                          */ => self.branch_u16(true, imm16),
+            0x32 /* bg                         */ => self.branch_u64(self.flags.greater, reg_a_value),
+            0x33 /* bg                         */ => self.branch_u16(self.flags.greater, imm16),
+            0x34 /* be                         */ => self.branch_u64(self.flags.equal, reg_a_value),
+            0x35 /* be                         */ => self.branch_u16(self.flags.greater, imm16),
+            0x36 /* bs                         */ => self.branch_u64(self.flags.smaller, reg_a_value),
+            0x37 /* bs                         */ => self.branch_u16(self.flags.smaller, imm16),
+            0x38 /* bng                        */ => self.branch_u64(!self.flags.greater, reg_a_value),
+            0x39 /* bng                        */ => self.branch_u16(!self.flags.greater, imm16),
+            0x3A /* bne                        */ => self.branch_u64(!self.flags.equal, reg_a_value),
+            0x3B /* bne                        */ => self.branch_u16(!self.flags.equal, imm16),
+            0x3C /* bns                        */ => self.branch_u64(!self.flags.smaller, reg_a_value),
+            0x3D /* bns                        */ => self.branch_u16(!self.flags.smaller, imm16),
+            (0x3E..=0xFF) => { #[cfg(test)] { println!("Unknown opcode: {:#x}", opcode) } #[cfg(not(test))] { unimplemented!("Unknown opcode {:#x}", opcode) } },
         }
 
         let curr_instr_ptr = self.regs[INSTR_PTR];
@@ -324,10 +324,17 @@ impl CPU {
         }
     }
 
-    fn branch<T: UsableForBranch>(&mut self, condition: bool, offset: T) {
+    fn branch_u16(&mut self, condition: bool, offset: u16) {
         if condition {
             let current_ip = self.regs[INSTR_PTR] as i64;
-            self.regs[INSTR_PTR] = offset.to_i64().wrapping_mul(4).wrapping_add(current_ip) as u64;
+            self.regs[INSTR_PTR] = (offset as i16 as i64).wrapping_mul(4).wrapping_add(current_ip) as u64;
+        }
+    }
+    
+    fn branch_u64(&mut self, condition: bool, offset: u64) {
+        if condition {
+            let current_ip = self.regs[INSTR_PTR] as i64;
+            self.regs[INSTR_PTR] = (offset as i64).wrapping_mul(4).wrapping_add(current_ip) as u64;
         }
     }
 
@@ -389,22 +396,6 @@ impl CPU {
         assert!(byte <= 7); // TODO: This might panic for now, in the future this would trigger an interrupt
         let shift = byte * 8;
         ((v >> shift) & 0xFF) as u8
-    }
-}
-
-trait UsableForBranch {
-    fn to_i64(self) -> i64;
-}
-
-impl UsableForBranch for u64 {
-    fn to_i64(self) -> i64 {
-        self as i64
-    }
-}
-
-impl UsableForBranch for u16 {
-    fn to_i64(self) -> i64 {
-        self as i16 as i64
     }
 }
 
