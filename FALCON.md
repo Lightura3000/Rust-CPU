@@ -215,7 +215,6 @@
 ## Load immediate (`ldi`)
 - **Opcode:** `0x22`
 - **Description:** Loads a 16-bit immediate into a 16-bit chunk of a register
-- **Pseudocode:** `TODO`
 - **Encoding:** `0010 0010 AAAA 00SS IIII IIII IIII IIII`
 - **Info:** `S` in the `encoding` signifies which chunk is addressed (0 = least significant, 4 = most significant)
 
@@ -242,27 +241,23 @@
 ## Store register (`str`)
 - **Opcode:** `0x26`
 - **Description:** Stores a byte from a register into memory
-- **Pseudocode:** `TODO`
 - **Encoding:** `0010 0110 AAAA BBBB 0000 0000 0000 0SSS`
 - **Info:** `S` in the `encoding` signifies which byte is addressed (0 = least significant, 7 = most significant)
 
 
 - **Opcode:** `0x27`
 - **Description:** Stores a byte from a register into memory addressed by 16 bits
-- **Pseudocode:** `TODO`
 - **Encoding:** `0010 0111 AAAA 0SSS IIII IIII IIII IIII`
 - **Info:** `S` in the `encoding` signifies which byte is addressed (0 = least significant, 7 = most significant)
 
 ## Push (`push`)
 - **Opcode:** `0x28`
 - **Description:** Pushes a register to the stack and increases the stack pointer
-- **Pseudocode:** `TODO`
 - **Encoding:** `0x28A00000`
 
 ## Pop (`pop`)
 - **Opcode:** `0x29`
 - **Description:** Pops from the stack to a register and decreases the stack pointer
-- **Pseudocode:** `TODO`
 - **Encoding:** `0x29A00000`
 
 ## Compare (`cmp`)
@@ -304,67 +299,56 @@
 ## Branch (`b`)
 - **Opcode:** `0x30`
 - **Description:** Offsets the instruction pointer by a register (signed)
-- **Pseudocode:** `TODO`
 - **Encoding:** `0x30A00000`
 
 
 - **Opcode:** `0x31`
 - **Description:** Offsets the instruction pointer by a 16-bit immediate (signed)
-- **Pseudocode:** `TODO`
 - **Encoding:** `0x3100IIII`
 
 ## Branch if greater than (`bg`)
 - **Opcode:** `0x32`
 - **Description:** Offsets the instruction pointer by a register (signed) if the greater flag is set
-- **Pseudocode:** `TODO`
 - **Encoding:** `0x32A00000`
 
 
 - **Opcode:** `0x33`
 - **Description:** Offsets the instruction pointer by a 16-bit immediate (signed) if the greater flag is set
-- **Pseudocode:** `TODO`
 - **Encoding:** `0x3300IIII`
 
 ## Branch if equal (`be`)
 - **Opcode:** `0x34`
 - **Description:** Offsets the instruction pointer by a register (signed) if the equal flag is set
-- **Pseudocode:** `TODO`
 - **Encoding:** `0x34A00000`
 
 
 - **Opcode:** `0x35`
 - **Description:** Offsets the instruction pointer by a 16-bit immediate (signed) if the equal flag is set
-- **Pseudocode:** `TODO`
 - **Encoding:** `0x3500IIII`
 
 ## Branch if smaller (`bs`)
 - **Opcode:** `0x36`
 - **Description:** Offsets the instruction pointer by a register (signed) if the smaller flag is set
-- **Pseudocode:** `TODO`
 - **Encoding:** `0x36A00000`
 
 
 - **Opcode:** `0x37`
 - **Description:** Offsets the instruction pointer by a 16-bit immediate (signed) if the smaller flag is set
-- **Pseudocode:** `TODO`
 - **Encoding:** `0x3700IIII`
 
 ### Branch if greater than or equal (`bge`) 
 - **Opcode:** `0x38`
 - **Description:** Offsets the instruction pointer by a 16-bit immediate (signed) if the greater flag is not set
-- **Pseudocode:** `TODO`
 - **Encoding:** `0x3800IIII`
 
 ### Branch if not equal (`bne`)
 - **Opcode:** `0x39`
 - **Description:** Offsets the instruction pointer by a 16-bit immediate (signed) if the equal flag is not set
-- **Pseudocode:** `TODO`
 - **Encoding:** `0x3900IIII`
 
 ### Branch if smaller or equal (`bse`)
 - **Opcode:** `0x3A`
 - **Description:** Offsets the instruction pointer by a 16-bit immediate (signed) if the smaller flag is not set
-- **Pseudocode:** `TODO`
 - **Encoding:** `0x3A00IIII`
 
 
