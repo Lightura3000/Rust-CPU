@@ -102,14 +102,7 @@ impl CPU {
     }
 
     /// A helper function to perform an unsigned arithmetic operation and set flags
-    fn exec_arith_op(
-        &mut self,
-        reg_a: usize,
-        left_hand_side: u64,
-        right_hand_side: u64,
-        op_unsigned: fn(u64, u64) -> (u64, bool),
-        op_signed: fn(i64, i64) -> (i64, bool),
-    ) {
+    fn exec_arith_op(&mut self, reg_a: usize, left_hand_side: u64, right_hand_side: u64, op_unsigned: fn(u64, u64) -> (u64, bool), op_signed: fn(i64, i64) -> (i64, bool)) {
         let (result, carry) = op_unsigned(left_hand_side, right_hand_side);
         // For signed overflow detection, we perform the operation in signed space
         let (signed_result, signed_overflow) = op_signed(left_hand_side as i64, right_hand_side as i64);
