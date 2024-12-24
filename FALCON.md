@@ -216,7 +216,7 @@
 - **Opcode:** `0x22`
 - **Description:** Loads a 16-bit immediate into a 16-bit chunk of a register
 - **Encoding:** `0010 0010 AAAA 00SS IIII IIII IIII IIII`
-- **Info:** `S` in the `encoding` signifies which chunk is addressed (0 = least significant, 4 = most significant)
+- **Info:** `S` in the `encoding` signifies which chunk is addressed (0 = least significant, 3 = most significant)
 
 ## TODO UNUSED OPCODE | TODO UNUSED OPCODE | TODO UNUSED OPCODE | TODO UNUSED OPCODE | TODO UNUSED OPCODE | TODO UNUSED OPCODE
 - **Opcode:** `0x23`
