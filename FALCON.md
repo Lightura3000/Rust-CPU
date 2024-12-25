@@ -336,23 +336,104 @@
 - **Description:** Offsets the instruction pointer by a 16-bit immediate (signed) if the smaller flag is set
 - **Encoding:** `0x3700IIII`
 
-### Branch if greater than or equal (`bge`) 
+## Branch if greater than or equal (`bge`) 
 - **Opcode:** `0x38`
 - **Description:** Offsets the instruction pointer by a 16-bit immediate (signed) if the greater flag is not set
 - **Encoding:** `0x3800IIII`
 
-### Branch if not equal (`bne`)
+## Branch if not equal (`bne`)
 - **Opcode:** `0x39`
 - **Description:** Offsets the instruction pointer by a 16-bit immediate (signed) if the equal flag is not set
 - **Encoding:** `0x3900IIII`
 
-### Branch if smaller or equal (`bse`)
+## Branch if smaller or equal (`bse`)
 - **Opcode:** `0x3A`
 - **Description:** Offsets the instruction pointer by a 16-bit immediate (signed) if the smaller flag is not set
 - **Encoding:** `0x3A00IIII`
 
+## Integer to floating point (`ftoi`)
+- **Opcode:** `0x3B`
+- **Description:** Converts an integer in B to a float in A
+- **Encoding:** `0x3bAB0000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
 
-### `int` - Trigger a software interrupt
+## Floating point to integer (`itof`)
+- **Opcode:** `0x3C`
+- **Description:** Converts a float in B to an integer in A
+- **Encoding:** `0x3cAB0000`
+
+## Floating point add (`fadd`)
+- **Opcode:** `0x3D`
+- **Description:** Adds two floats from registers B and C and puts result in A
+- **Encoding:** `0x3dABC000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point subtract (`fsub`)
+- **Opcode:** `0x3E`
+- **Description:** Subtracts the float in B from the float in C and puts the result in A
+- **Encoding:** `0x3eABC000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point multiply (`fmul`)
+- **Opcode:** `0x3F`
+- **Description:** Multiplies the floats from registers B and C and puts the result in A
+- **Encoding:** `0x3fABC000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point divide (`fdiv`)
+- **Opcode:** `0x40`
+- **Description:** Divides the float in A by the float in C and stores the result in C
+- **Encoding:** `0x40ABC000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point negate (`fneg`)
+## Floating point compare (`fcmp`)
+## Floating point power (`fpow`)
+## Floating point root (`froot`)
+## Floating point logarithm (`flog`)
+## Floating point absolute value (`fabs`)
+## Floating point negate value (`fneg`)
+## Floating point sin (`fsin`)
+## Floating point cos (`fcos`)
+## Floating point tan (`ftan`)
+## Floating point inverse sin (`fasin`)
+## Floating point inverse cos (`facos`)
+## Floating point inverse tan (`fatan`)
+## Floating point round down (`ffloor`)
+## Floating point round up (`fceil`)
+## Floating point round (`fround`)
+## Floating point load infinity (`finf`)
+## Floating point load NaN (`fnan`)
+
+## Integer to double precision
+## Double precision to integer
+## Float point to double precision (`ftod`)
+## Double precision to floating point (`dtof`)
+
+## Double precision subtract (`dsub`)
+## Double precision multiply (`dmul`)
+## Double precision divide (`ddiv`)
+## Double precision negate (`dneg`)
+## Double precision compare (`dcmp`)
+## Double precision power (`dpow`)
+## Double precision root (`droot`)
+## Double precision logarithm (`dlog`)
+## Double precision absolute value (`dabs`)
+## Double precision negate value (`dneg`)
+## Double precision sin (`dsin`)
+## Double precision cos (`dcos`)
+## Double precision tan (`dtan`)
+## Double precision inverse sin (`dasin`)
+## Double precision inverse cos (`dacos`)
+## Double precision inverse tan (`datan`)
+## Double precision round down (`dfloor`)
+## Double precision round up (`dceil`)
+## Double precision round (`dround`)
+## Double precision load infinity (`dinf`)
+## Double precision load NaN (`dnan`)
+
+
+## Trigger a software interrupt (`int`)
 
 
 # Pseudoinstructions
