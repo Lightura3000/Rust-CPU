@@ -1,12 +1,3 @@
-
-
-```
-- **Opcode:** `0x`
-- **Description:** TODO
-- **Pseudocode:** `TODO`
-- **Encoding:** `0x`
-```
-
 ## No Operation (`nop`)
 - **Opcode:** `0x00`
 - **Description:** Does nothing
@@ -606,7 +597,7 @@
 ## Double precision load infinity (`dinf`)
 - **Opcode:** `0x69`
 - **Description:** Loads the double precision value for infinity into A
-- **Encoding:** `0x50A00000`
+- **Encoding:** `0x69A00000`
 
 ## Double precision load NaN (`dnan`)
 - **Opcode:** `0x6A`
