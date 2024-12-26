@@ -387,54 +387,235 @@
 - **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
 
 ## Floating point negate (`fneg`)
-## Floating point compare (`fcmp`)
-## Floating point power (`fpow`)
-## Floating point root (`froot`)
-## Floating point logarithm (`flog`)
-## Floating point absolute value (`fabs`)
-## Floating point negate value (`fneg`)
-## Floating point sin (`fsin`)
-## Floating point cos (`fcos`)
-## Floating point tan (`ftan`)
-## Floating point inverse sin (`fasin`)
-## Floating point inverse cos (`facos`)
-## Floating point inverse tan (`fatan`)
-## Floating point round down (`ffloor`)
-## Floating point round up (`fceil`)
-## Floating point round (`fround`)
-## Floating point load infinity (`finf`)
-## Floating point load NaN (`fnan`)
+- **Opcode:** `0x41`
+- **Description:** Negates a the float in A
+- **Encoding:** `0x41A00000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
 
-## Integer to double precision
-## Double precision to integer
+## Floating point compare (`fcmp`)
+- **Opcode:** `0x42`
+- **Description:** Compares the float values in A and C and sets appropriate flags
+- **Encoding:** `0x42AB0000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point power (`fpow`)
+- **Opcode:** `0x43`
+- **Description:** Raises A to the power B and stores the result in A
+- **Encoding:** `0x43AB0000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point root (`froot`)
+- **Opcode:** `0x44`
+- **Description:** Takes the Bth root of the float in A and stores the result in A
+- **Encoding:** `0x44AB0000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point logarithm (`flog`)
+- **Opcode:** `0x45`
+- **Description:** Calculates the logarithm of A with base B and stores the result in A
+- **Encoding:** `0x45AB0000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point absolute value (`fabs`)
+- **Opcode:** `0x46`
+- **Description:** Calculates the absolute value of A and stores the result in A
+- **Encoding:** `0x46A00000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point sin (`fsin`)
+- **Opcode:** `0x47`
+- **Description:** Calculates the sine of B and stores the result in A
+- **Encoding:** `0x47AB0000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point cos (`fcos`)
+- **Opcode:** `0x48`
+- **Description:** Calculates the cosine of B and stores the result in A
+- **Encoding:** `0x48AB0000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point tan (`ftan`)
+- **Opcode:** `0x49`
+- **Description:** Calculates the tangent of B and stores the result in A
+- **Encoding:** `0x49AB0000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point inverse sin (`fasin`)
+- **Opcode:** `0x4A`
+- **Description:** Calculates the inverse sine of B and stores the result in A
+- **Encoding:** `0x4aAB0000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point inverse cos (`facos`)
+- **Opcode:** `0x4B`
+- **Description:** Calculates the inverse cosine of B and stores the result in A
+- **Encoding:** `0x4bAB0000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point inverse tan (`fatan`)
+- **Opcode:** `0x4C`
+- **Description:** Calcuates the inverse tangent of B and stores the result in A
+- **Encoding:** `0x4cAB0000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point round down (`ffloor`)
+- **Opcode:** `0x4D`
+- **Description:** Calculates the floor of A and stores the result in A (still as a float)
+- **Encoding:** `0x4dA0000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point round up (`fceil`)
+- **Opcode:** `0x4E`
+- **Description:** Calculates the ceiling of A and stores the result in A (still as a float)
+- **Encoding:** `0x4eA00000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point round (`fround`)
+- **Opcode:** `0x4F`
+- **Description:** Rounds A and stores the result in A (still as a float)
+- **Encoding:** `0x4fA00000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point load infinity (`finf`)
+- **Opcode:** `0x50`
+- **Description:** Loads the floating point value for infinity into A
+- **Encoding:** `0x50A00000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Floating point load NaN (`fnan`)
+- **Opcode:** `0x51`
+- **Description:** Loads the floating point value for NaN into A
+- **Encoding:** `0x51A00000`
+- **Info:** Since a float is 32 bits long, only the least significant 32 bits of A are affected
+
+## Integer to double precision (`itod`)
+- **Opcode:** `0x52`
+- **Description:** Converts the integer value in A to a double 
+- **Encoding:** `0x52A00000`
+
+## Double precision to integer (`dtoi`)
+- **Opcode:** `0x53`
+- **Description:** Converts the double in A to an integer
+- **Encoding:** `0x53A00000`
+
 ## Float point to double precision (`ftod`)
+- **Opcode:** `0x54`
+- **Description:** Converts the float in A to a double
+- **Encoding:** `0x54A00000`
+
 ## Double precision to floating point (`dtof`)
+- **Opcode:** `0x55`
+- **Description:** Converts the double in A to a float
+- **Encoding:** `0x55A00000`
+
+## Double precision add (`dadd`)
+- **Opcode:** `0x56`
+- **Description:** Adds two doubles from registers B and C and puts result in A
+- **Encoding:** `0x56ABC000`
 
 ## Double precision subtract (`dsub`)
+- **Opcode:** `0x57`
+- **Description:** Subtracts the double in B from the double in C and puts the result in A
+- **Encoding:** `0x57ABC000`
+
 ## Double precision multiply (`dmul`)
+- **Opcode:** `0x58`
+- **Description:** Multiplies the doubles from registers B and C and puts the result in A
+- **Encoding:** `0x58ABC000`
+
 ## Double precision divide (`ddiv`)
+- **Opcode:** `0x59`
+- **Description:** Divides the double in A by the double in C and stores the result in C
+- **Encoding:** `0x59ABC000`
+
 ## Double precision negate (`dneg`)
+- **Opcode:** `0x5A`
+- **Description:** Negates a the double in A
+- **Encoding:** `0x5aA00000`
+
 ## Double precision compare (`dcmp`)
+- **Opcode:** `0x5B`
+- **Description:** Compares the double values in A and C and sets appropriate flags
+- **Encoding:** `0x5bAB0000`
+
 ## Double precision power (`dpow`)
+- **Opcode:** `0x5C`
+- **Description:** Raises A to the power B and stores the result in A
+- **Encoding:** `0x5cAB0000`
+
 ## Double precision root (`droot`)
+- **Opcode:** `0x5D`
+- **Description:** Takes the Bth root of the double in A and stores the result in A
+- **Encoding:** `0x5dAB0000`
+
 ## Double precision logarithm (`dlog`)
+- **Opcode:** `0x5E`
+- **Description:** Calculates the logarithm of A with base B and stores the result in A
+- **Encoding:** `0x5eAB0000`
+
 ## Double precision absolute value (`dabs`)
-## Double precision negate value (`dneg`)
+- **Opcode:** `0x5F`
+- **Description:** Calculates the absolute value of A and stores the result in A
+- **Encoding:** `0x5fA00000`
+
 ## Double precision sin (`dsin`)
+- **Opcode:** `0x60`
+- **Description:** Calculates the sine of B and stores the result in A
+- **Encoding:** `0x60AB0000`
+
 ## Double precision cos (`dcos`)
+- **Opcode:** `0x61`
+- **Description:** Calculates the cosine of B and stores the result in A
+- **Encoding:** `0x61AB0000`
+
 ## Double precision tan (`dtan`)
+- **Opcode:** `0x62`
+- **Description:** Calculates the tangent of B and stores the result in A
+- **Encoding:** `0x62AB0000`
+
 ## Double precision inverse sin (`dasin`)
+- **Opcode:** `0x63`
+- **Description:** Calculates the inverse sine of B and stores the result in A
+- **Encoding:** `0x63AB0000`
+
 ## Double precision inverse cos (`dacos`)
+- **Opcode:** `0x64`
+- **Description:** Calculates the inverse cosine of B and stores the result in A
+- **Encoding:** `0x64AB0000`
+
 ## Double precision inverse tan (`datan`)
+- **Opcode:** `0x65`
+- **Description:** Calcuates the inverse tangent of B and stores the result in A
+- **Encoding:** `0x65AB0000`
+
 ## Double precision round down (`dfloor`)
+- **Opcode:** `0x66`
+- **Description:** Calculates the floor of A and stores the result in A (still as a double)
+- **Encoding:** `0x66A0000`
+
 ## Double precision round up (`dceil`)
+- **Opcode:** `0x67`
+- **Description:** Calculates the ceiling of A and stores the result in A (still as a double)
+- **Encoding:** `0x67A00000`
+
 ## Double precision round (`dround`)
+- **Opcode:** `0x68`
+- **Description:** Rounds A and stores the result in A (still as a double)
+- **Encoding:** `0x68A00000`
+
 ## Double precision load infinity (`dinf`)
+- **Opcode:** `0x69`
+- **Description:** Loads the double precision value for infinity into A
+- **Encoding:** `0x50A00000`
+
 ## Double precision load NaN (`dnan`)
+- **Opcode:** `0x6A`
+- **Description:** Loads the double precision value for NaN into A
+- **Encoding:** `0x6aA00000`
 
 
-## Trigger a software interrupt (`int`)
+## Trigger a software interrupt (`int`) (TODO)
 
 
-# Pseudoinstructions
+# Pseudoinstructions (TODO)
 inc, dec
