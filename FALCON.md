@@ -61,22 +61,29 @@ This instruction performs an arithmetic operation. Which one exactly depends on 
 
 ## 3. Bitwise operations
 ```
+(a)
           Src reg1
           vvvv
 0010 AAAA BBBB CCCC 0000 0000 0000 0OOO
 ^^^^ ^^^^      ^^^^                 ^^^
 Opc  Dest reg  Src reg2             Operation
-    
+
+(b)
+          Src reg
+          vvvv
+0010 AAAA BBBB 0000 0000 0000 0000 0OOO
+^^^^ ^^^^                           ^^^
+Opc  Dest reg                       Operation
 ```
 
 This instruction performs a bitwise operation between two registers. Which one exactly depends on the operation (`O`) bits:
-- `000 (0)` Bitwise AND
-- `001 (1)` Bitwise OR
-- `010 (2)` Bitwise XOR 
-- `011 (3)` Bitwise NAND
-- `100 (4)` Bitwise NOR
-- `101 (5)` Bitwise XNOR
-- `110 (6)` Bitwise NOT
+- `000 (0)` Bitwise AND (bit pattern `a`). Performs bitwise AND between `B` and `C`, result is stored in `A`.
+- `001 (1)` Bitwise OR (bit pattern `a`). Performs bitwise OR between `B` and `C`, result is stored in `A`.
+- `010 (2)` Bitwise XOR (bit pattern `a`). Performs bitwise XOR between `B` and `C`, result is stored in `A`.
+- `011 (3)` Bitwise NAND (bit pattern `a`). Performs bitwise NAND between `B` and `C`, result is stored in `A`.
+- `100 (4)` Bitwise NOR (bit pattern `a`). Performs bitwise NOR between `B` and `C`, result is stored in `A`.
+- `101 (5)` Bitwise XNOR (bit pattern `a`). Performs bitwise XNOR between `B` and `C`, result is stored in `A`.
+- `110 (6)` Bitwise NOT (bit pattern `b`). Performs bitwise NOT on `B`, result is stored in `A`.
 - `111 (7)` Unassigned. Using this will do nothing.
 
 ## 4. Shift & Rotate
