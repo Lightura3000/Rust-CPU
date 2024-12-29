@@ -1,17 +1,18 @@
 use std::cmp::Ordering;
+use std::fmt::Display;
 
+type InstrFn = fn(&mut CPU, u32);
 const INSTR_PTR: usize = 15;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct CPU {
     pub regs: [u64; 16],
     pub memory: [u8; 4096],
-    privileged: bool, /// Indicates if the CPU is running in privileged mode
-    halted: bool, /// This field will probably get removed in the future
+    pub privileged: bool,
     pub flags: Flags,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Eq, PartialEq)]
 pub struct Flags {
     // Set when an arithmetic operation results in a carry out of the most significant bit
     // Example: 0xFF + 0x01 = 0x100 (carry = true)
@@ -64,17 +65,25 @@ pub struct Flags {
 }
 
 impl CPU {
-    pub fn new() -> CPU {
-        CPU {
+    pub fn new(regs: [u64; 16], memory: [u8; 4096], privileged: bool, flags: Flags) -> Self {
+        Self {
+            regs,
+            memory,
+            privileged,
+            flags,
+        }
+    }
+
+    pub fn default() -> Self {
+        Self {
             regs: [0; 16],
             memory: [0; 4096],
             privileged: true,
-            halted: false,
             flags: Flags::default(),
         }
     }
 
-    pub fn run(&mut self, cycles: u32) {
+    pub fn run(&mut self, cycles: u64) {
         for _ in 0..cycles {
             let address = self.regs[INSTR_PTR] as usize;
             let instruction = self.fetch_instruction(address);
@@ -86,23 +95,407 @@ impl CPU {
         self.regs[INSTR_PTR] = value;
     }
 
-    fn fetch_instruction(&mut self, address: usize) -> u32 {
-        let byte1 = self.memory[address] as u32;
-        let byte2 = self.memory[address + 1] as u32;
-        let byte3 = self.memory[address + 2] as u32;
-        let byte4 = self.memory[address + 3] as u32;
-        (byte1 << 24) | (byte2 << 16) | (byte3 << 8) | byte4
+    pub fn exec(&mut self, instruction: u32) {
+        // Using a lookup table for opcodes instead of a match is probably faster
+        const INSTRUCTION_TABLE: [InstrFn; 10] = [
+            |_, _| { }, // nop
+            CPU::execute_arithmetic_operations,
+            CPU::execute_bitwise_operations,
+            CPU::execute_shift_and_rotate,
+            CPU::execute_data_movement_memory_stack,
+            CPU::execute_comparison,
+            CPU::execute_branching,
+            CPU::execute_conversion,
+            CPU::execute_floating,
+            CPU::execute_double,
+        ];
+
+        const OPCODE_MASK: u32 = 0xF0000000;
+
+        let opcode = ((instruction & OPCODE_MASK) >> 28) as usize;
+
+        match INSTRUCTION_TABLE.get(opcode) {
+            None => Self::complain(format!("Invalid instruction: {:#010x}", instruction)),
+            Some(function) => function(self, instruction),
+        }
     }
 
-    fn compare<T: Ord>(&mut self, a: T, b: T) {
-        let cmp = a.cmp(&b);
-        self.flags.greater = cmp == Ordering::Greater;
-        self.flags.equal = cmp == Ordering::Equal;
-        self.flags.smaller = cmp == Ordering::Less;
+    fn execute_arithmetic_operations(&mut self, instruction: u32) {
+        // Type for an arithmetic function: (self, dest, lhs, rhs)
+        type ArithmeticOperationFn = fn(&mut CPU, usize, u64, u64);
+
+        const OPERATION_MASK: u32 = 0x0000_000F;
+        const DEST_REG_MASK: u32  = 0x0F00_0000;
+        const SRC1_REG_MASK: u32  = 0x00F0_0000;
+        const SRC2_REG_MASK: u32  = 0x000F_0000;
+        const IMMEDIATE_MASK: u32 = 0x000F_FFF0;
+
+        let operation = instruction & OPERATION_MASK;
+        let dest = ((instruction & DEST_REG_MASK) >> DEST_REG_MASK.trailing_zeros()) as usize;
+        let src1 = ((instruction & SRC1_REG_MASK) >> SRC1_REG_MASK.trailing_zeros()) as usize;
+        let src2 = ((instruction & SRC2_REG_MASK) >> SRC2_REG_MASK.trailing_zeros()) as usize;
+
+        let b = self.regs[src1];
+        let c = self.regs[src2];
+        let imm = ((instruction & IMMEDIATE_MASK) >> IMMEDIATE_MASK.trailing_zeros()) as u64;
+
+        // decide which CPU method we’ll call (add, sub, mul, etc.)
+        let arith_fn: ArithmeticOperationFn = match operation {
+            0x0 | 0x1       => Self::addition,
+            0x2 | 0x3 | 0x4 => Self::subtraction,
+            0x5 | 0x6       => Self::multiplication,
+            0x7 | 0x8 | 0x9 => Self::unsigned_division,
+            0xA | 0xB | 0xC => Self::signed_division,
+            _ => panic!("Invalid arithmetic operation code: {operation:#010X}"),
+        };
+
+        // decide which operands (lhs, rhs) to pass
+        let (lhs, rhs) = match operation {
+            0x0 => (b,   c),
+            0x1 => (b,   imm),
+            0x2 => (b,   c),
+            0x3 => (b,   imm),
+            0x4 => (imm, b),
+            0x5 => (b,   c),
+            0x6 => (b,   imm),
+            0x7 => (b,   c),
+            0x8 => (b,   imm),
+            0x9 => (imm, b),
+            0xA => (b,   c),
+            0xB => (b,   imm),
+            0xC => (imm, b),
+            _ => panic!("Invalid arithmetic operation code: {operation:#010X}"),
+        };
+
+        // call the chosen arithmetic function with the decoded operands
+        arith_fn(self, dest, lhs, rhs);
     }
 
-    /// A helper function to perform an unsigned arithmetic operation and set flags
-    fn exec_arith_op(&mut self, reg_a: usize, left_hand_side: u64, right_hand_side: u64, op_unsigned: fn(u64, u64) -> (u64, bool), op_signed: fn(i64, i64) -> (i64, bool)) {
+    fn execute_bitwise_operations(&mut self, instruction: u32) {
+        const OPERATION_MASK: u32 = 0b111;
+        const DEST_REG_MASK: u32  = 0x0F00_0000;
+        const SRC1_REG_MASK: u32  = 0x00F0_0000;
+        const SRC2_REG_MASK: u32  = 0x000F_0000;
+
+        let operation = instruction & OPERATION_MASK;
+        let dest = ((instruction & DEST_REG_MASK) >> DEST_REG_MASK.trailing_zeros()) as usize;
+        let src1 = ((instruction & SRC1_REG_MASK) >> SRC1_REG_MASK.trailing_zeros()) as usize;
+        let src2 = ((instruction & SRC2_REG_MASK) >> SRC2_REG_MASK.trailing_zeros()) as usize;
+
+        let b = self.regs[src1];
+        let c = self.regs[src2];
+
+        self.regs[dest] = match operation {
+            0 => b & c,
+            1 => b | c,
+            2 => b ^ c,
+            3 => !(b & c),
+            4 => !(b | c),
+            5 => !(b ^ c),
+            6 => !b,
+            _ => {
+                Self::complain(format!("Invalid arithmetic operation code: {operation:#010X}"));
+                return;
+            },
+        }
+    }
+
+    fn execute_shift_and_rotate(&mut self, instruction: u32) {
+        const OPERATION_MASK: u32 = 0b111;
+        const DEST_REG_MASK: u32  = 0x0F00_0000;
+        const SRC1_REG_MASK: u32  = 0x00F0_0000;
+        const SRC2_REG_MASK: u32  = 0x000F_0000;
+        const IMMEDIATE_MASK: u32 = 0b11_1111_0000;
+
+        let operation = instruction & OPERATION_MASK;
+        let dest = ((instruction & DEST_REG_MASK) >> DEST_REG_MASK.trailing_zeros()) as usize;
+        let src1 = ((instruction & SRC1_REG_MASK) >> SRC1_REG_MASK.trailing_zeros()) as usize;
+        let src2 = ((instruction & SRC2_REG_MASK) >> SRC2_REG_MASK.trailing_zeros()) as usize;
+
+        let b = self.regs[src1];
+        let c = self.regs[src2];
+        let imm = ((instruction & IMMEDIATE_MASK) >> IMMEDIATE_MASK.trailing_zeros()) as u64;
+
+        self.regs[dest] = match operation {
+            0 => b >> c,
+            1 => b >> imm,
+            2 => b << c,
+            3 => b << imm,
+            4 => b.rotate_right(c as u32),
+            5 => b.rotate_right(imm as u32),
+            6 => b.rotate_left(c as u32),
+            7 => b.rotate_left(imm as u32),
+            _ => panic!("Invalid operation code: {operation:#010x}"),
+        }
+    }
+
+    fn execute_data_movement_memory_stack(&mut self, instruction: u32) {
+        const OPERATION_MASK: u32 = 0b111;
+        const DEST_REG_MASK: u32  = 0x0F00_0000;
+        const SRC1_REG_MASK: u32  = 0x00F0_0000;
+        const SRC2_REG_MASK: u32  = 0x000F_0000;
+        const IMMEDIATE_MASK: u32 = 0x00FF_FF00;
+        const SECTION_MASK: u32 = 0b0111_0000;
+
+        let operation = instruction & OPERATION_MASK;
+        let dest = ((instruction & DEST_REG_MASK) >> DEST_REG_MASK.trailing_zeros()) as usize;
+        let src = ((instruction & SRC1_REG_MASK) >> SRC1_REG_MASK.trailing_zeros()) as usize;
+        let imm = ((instruction & IMMEDIATE_MASK) >> IMMEDIATE_MASK.trailing_zeros()) as u16;
+        let section = ((instruction & SECTION_MASK) >> SECTION_MASK.trailing_zeros()) as u8;
+
+        let b = self.regs[src];
+
+        match operation {
+            0 => self.regs[dest] = self.regs[src],
+            1 => {
+                const CHUNK_MASK: u32 = 0b0011_0000;
+                let chunk = ((instruction & CHUNK_MASK) >> CHUNK_MASK.trailing_zeros()) as u8;
+                self.regs[dest] = Self::set_chunk(self.regs[dest], imm, chunk);
+            }
+            2 => self.regs[dest] = Self::set_byte(self.regs[dest], self.memory[b as usize], section),
+            3 => self.regs[dest] = Self::set_byte(self.regs[dest], self.memory[imm as usize], section),
+            4 => self.memory[b as usize] = Self::get_byte(self.regs[dest], section),
+            5 => self.memory[imm as usize] = Self::get_byte(self.regs[dest], section),
+            6 => Self::complain("Push not implemented yet"),
+            7 => Self::complain("Pop not implemented yet"),
+            _ => Self::complain(format!("Invalid operation code: {operation:#04x}")),
+        }
+    }
+
+    fn execute_comparison(&mut self, instruction: u32) {
+        const REG1_MASK: u32      = 0x0F00_0000;
+        const REG2_MASK: u32      = 0x00F0_0000;
+        const IMMEDIATE_MASK: u32 = 0x00FF_FF00;
+        const COMPARISON_MASK: u32 = 0b111;
+
+        let reg1 = ((instruction & REG1_MASK) >> REG1_MASK.trailing_zeros()) as usize;
+        let reg2 = ((instruction & REG2_MASK) >> REG2_MASK.trailing_zeros()) as usize;
+        let imm = ((instruction & IMMEDIATE_MASK) >> IMMEDIATE_MASK.trailing_zeros()) as u64;
+        let comparison = instruction & COMPARISON_MASK;
+
+        let reg1 = self.regs[reg1];
+        let reg2 = self.regs[reg2];
+
+        fn compare<T: Ord>(cpu: &mut CPU, a: T, b: T) {
+            let cmp = a.cmp(&b);
+            cpu.flags.greater = cmp == Ordering::Greater;
+            cpu.flags.equal = cmp == Ordering::Equal;
+            cpu.flags.smaller = cmp == Ordering::Less;
+        }
+
+        fn partial_compare<T: PartialOrd>(cpu: &mut CPU, a: T, b: T) {
+            match a.partial_cmp(&b) {
+                None => {
+                    cpu.flags.greater = false;
+                    cpu.flags.equal = false;
+                    cpu.flags.smaller = false;
+                }
+                Some(cmp) => {
+                    cpu.flags.greater = cmp == Ordering::Greater;
+                    cpu.flags.equal = cmp == Ordering::Equal;
+                    cpu.flags.smaller = cmp == Ordering::Less;
+                }
+            }
+        }
+
+        match instruction {
+            0 => compare(self, reg1, reg2),
+            1 => compare(self, reg1, imm),
+            2 => compare(self, imm, reg1),
+            3 => compare(self, reg1 as i64, reg2 as i64),
+            4 => compare(self, reg1 as i64, imm as i64),
+            5 => compare(self, imm as i64, reg1 as i64),
+            6 => partial_compare(self, f32::from_bits(reg1 as u32), f32::from_bits(reg2 as u32)),
+            7 => partial_compare(self, f64::from_bits(reg1),        f64::from_bits(reg2)),
+            _ => Self::complain(format!("Invalid comparison code: {comparison:#04x}")),
+        }
+    }
+
+    fn execute_branching(&mut self, instruction: u32) {
+        const BRANCH_CONDITION: u32 = 0b1111;
+        const BRANCH_AMOUNT_MASK: u32 = 0x0F00_0000;
+        const IMMEDIATE_MASK: u32     = 0x0FFF_F000;
+
+        let branch_condition = instruction & BRANCH_CONDITION;
+        let branch_amount = ((instruction & BRANCH_AMOUNT_MASK) >> BRANCH_AMOUNT_MASK.trailing_zeros()) as usize;
+        let imm_offset = ((instruction & IMMEDIATE_MASK) >> IMMEDIATE_MASK.trailing_zeros()) as u16;
+
+        let reg_offset = self.regs[branch_amount];
+
+        fn branch_u16(cpu: &mut CPU, condition: bool, offset: u16) {
+            if condition {
+                let current_ip = cpu.regs[INSTR_PTR] as i64;
+                cpu.regs[INSTR_PTR] = (offset as i16 as i64 * 4 + current_ip) as u64;
+            }
+        }
+
+        fn branch_u64(cpu: &mut CPU, condition: bool, offset: u64) {
+            if condition {
+                let current_ip = cpu.regs[INSTR_PTR] as i64;
+                cpu.regs[INSTR_PTR] = (offset as i64 * 4 + current_ip) as u64;
+            }
+        }
+
+        match branch_condition {
+            0x0 => branch_u64(self, true, reg_offset),
+            0x1 => branch_u16(self, true, imm_offset),
+            0x2 => branch_u64(self, self.flags.greater, reg_offset),
+            0x3 => branch_u16(self, self.flags.greater, imm_offset),
+            0x4 => branch_u64(self, self.flags.equal, reg_offset),
+            0x5 => branch_u16(self, self.flags.equal, imm_offset),
+            0x6 => branch_u64(self, self.flags.smaller, reg_offset),
+            0x7 => branch_u16(self, self.flags.smaller, imm_offset),
+            0x8 => branch_u64(self, self.flags.greater || self.flags.equal, reg_offset),
+            0x9 => branch_u16(self, self.flags.greater || self.flags.equal, imm_offset),
+            0xA => branch_u64(self, !self.flags.equal, reg_offset),
+            0xB => branch_u16(self, !self.flags.equal, imm_offset),
+            0xC => branch_u64(self, self.flags.smaller || self.flags.equal, reg_offset),
+            0xD => branch_u16(self, self.flags.smaller || self.flags.equal, imm_offset),
+            0xE | 0xF => Self::complain(format!("Line {}: Using unassigned branching condition {:#x}", line!(), branch_condition)),
+            _ => Self::complain(format!("Invalid branching code: {branch_condition:#04x}")),
+        }
+    }
+
+    fn execute_conversion(&mut self, instruction: u32) {
+        const CONVERSION_MASK: u32 = 0b111;
+        const REG_MASK: u32 = 0x0F000000;
+        const IMMEDIATE_MASK: u32 = 0x00FFFF00;
+
+        let conversion = instruction & CONVERSION_MASK;
+        let reg = ((instruction & REG_MASK) >> REG_MASK.trailing_zeros()) as usize;
+        let imm = ((instruction & IMMEDIATE_MASK) >> IMMEDIATE_MASK.trailing_zeros()) as u16;
+
+        let a = self.regs[reg];
+
+        match conversion {
+            0 => self.regs[reg] = (imm as i16 as f32).to_bits() as u64, // 0 => Immediate to float
+            1 => self.regs[reg] = (imm as i16 as f64).to_bits(), // 1 => Immediate to double
+            2 => self.regs[reg] = (a as i64 as f32).to_bits() as u64, // 2 => Int to float
+            3 => self.regs[reg] = (a as i64 as f64).to_bits(), // 3 => Int to double
+            4 => self.regs[reg] = f32::from_bits(a as u32) as i64 as u64, // 4 => Float to int
+            5 => self.regs[reg] = (f32::from_bits(a as u32) as f64).to_bits(), // 5 => Float to double
+            6 => self.regs[reg] = f64::from_bits(a) as i64 as u64, // 6 => Double to int
+            7 => self.regs[reg] = (f64::from_bits(a) as f32).to_bits() as u64, // 7 => Double to float
+            _ => Self::complain(format!("Invalid conversion instruction: {conversion:#04x}")),
+        }
+    }
+
+    fn execute_floating(&mut self, instruction: u32) {
+        const DEST_REG_MASK: u32 = 0x0F000000;
+        const SRC1_REG_MASK: u32 = 0x00F00000;
+        const SRC2_REG_MASK: u32 = 0x000F0000;
+        const COMPARISON_MASK: u32 = 0b0111_0000_0000;
+        const OPERATION_MASK: u32 = 0b1_1111;
+
+        let dest = ((instruction & DEST_REG_MASK) >> DEST_REG_MASK.trailing_zeros()) as usize;
+        let src1 = ((instruction & SRC1_REG_MASK) >> SRC1_REG_MASK.trailing_zeros()) as usize;
+        let src2 = ((instruction & SRC2_REG_MASK) >> SRC2_REG_MASK.trailing_zeros()) as usize;
+        let comparison = instruction & COMPARISON_MASK;
+        let operation = instruction & OPERATION_MASK;
+
+        let a = f32::from_bits(self.regs[dest] as u32);
+        let b = f32::from_bits(self.regs[src1] as u32);
+        let c = f32::from_bits(self.regs[src2] as u32);
+
+        self.regs[dest] = match operation {
+            0x00 => b + c,
+            0x01 => b - c,
+            0x02 => b * c,
+            0x03 => b / c,
+            0x04 => b % c,
+            0x05 => -a,
+            0x06 => 1.0 / b,
+            0x07 => b.powf(c),
+            0x08 => f32::exp(b),
+            0x09 => b.nth_root(c),
+            0x0A => b.sqrt(),
+            0x0B => b.nth_root(3.0),
+            0x0C => b * b,
+            0x0D => b * b * b,
+            0x0E => b.log(c),
+            0x0F => f32::ln(b),
+            0x10 => b.abs(),
+            0x11 => b.sin(),
+            0x12 => b.cos(),
+            0x13 => b.tan(),
+            0x14 => b.asin(),
+            0x15 => b.acos(),
+            0x16 => b.atan(),
+            0x17 => b.floor(),
+            0x18 => b.ceil(),
+            0x19 => b.round(),
+            0x1A => a.min(b),
+            0x1B => a.max(b),
+            0x1C => a.signum(),
+            0x1D => (a - b).abs(),
+            0x1E => f32::INFINITY,
+            0x1F => f32::NAN,
+            _ => {
+                Self::complain(format!("Invalid operation: {comparison:#04x}"));
+                return;
+            }
+        }.to_bits() as u64
+    }
+
+    fn execute_double(&mut self, instruction: u32) {
+        const DEST_REG_MASK: u32 = 0x0F000000;
+        const SRC1_REG_MASK: u32 = 0x00F00000;
+        const SRC2_REG_MASK: u32 = 0x000F0000;
+        const COMPARISON_MASK: u32 = 0b0111_0000_0000;
+        const OPERATION_MASK: u32 = 0b1_1111;
+
+        let dest = ((instruction & DEST_REG_MASK) >> DEST_REG_MASK.trailing_zeros()) as usize;
+        let src1 = ((instruction & SRC1_REG_MASK) >> SRC1_REG_MASK.trailing_zeros()) as usize;
+        let src2 = ((instruction & SRC2_REG_MASK) >> SRC2_REG_MASK.trailing_zeros()) as usize;
+        let comparison = instruction & COMPARISON_MASK;
+        let operation = instruction & OPERATION_MASK;
+
+        let a = f64::from_bits(self.regs[dest]);
+        let b = f64::from_bits(self.regs[src1]);
+        let c = f64::from_bits(self.regs[src2]);
+
+        self.regs[dest] = match operation {
+            0x00 => b + c,
+            0x01 => b - c,
+            0x02 => b * c,
+            0x03 => b / c,
+            0x04 => b % c,
+            0x05 => -a,
+            0x06 => 1.0 / b,
+            0x07 => b.powf(c),
+            0x08 => f64::exp(b),
+            0x09 => b.nth_root(c),
+            0x0A => b.sqrt(),
+            0x0B => b.nth_root(3.0),
+            0x0C => b * b,
+            0x0D => b * b * b,
+            0x0E => b.log(c),
+            0x0F => f64::ln(b),
+            0x10 => b.abs(),
+            0x11 => b.sin(),
+            0x12 => b.cos(),
+            0x13 => b.tan(),
+            0x14 => b.asin(),
+            0x15 => b.acos(),
+            0x16 => b.atan(),
+            0x17 => b.floor(),
+            0x18 => b.ceil(),
+            0x19 => b.round(),
+            0x1A => a.min(b),
+            0x1B => a.max(b),
+            0x1C => a.signum(),
+            0x1D => (a - b).abs(),
+            0x1E => f64::INFINITY,
+            0x1F => f64::NAN,
+            _ => {
+                Self::complain(format!("Invalid operation: {comparison:#04x}"));
+                return;
+            }
+        }.to_bits() as u64
+    }
+
+    /// Helper function to perform an unsigned arithmetic operation and set flags
+    fn exec_arithmetic_operation(&mut self, reg_a: usize, left_hand_side: u64, right_hand_side: u64, op_unsigned: fn(u64, u64) -> (u64, bool), op_signed: fn(i64, i64) -> (i64, bool)) {
         let (result, carry) = op_unsigned(left_hand_side, right_hand_side);
         // For signed overflow detection, we perform the operation in signed space
         let (signed_result, signed_overflow) = op_signed(left_hand_side as i64, right_hand_side as i64);
@@ -114,33 +507,29 @@ impl CPU {
         self.flags.overflow = signed_overflow;
     }
 
-    /// Helper for addition: rA = lhs + rhs
-    fn exec_add(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
-        self.exec_arith_op(reg_a, lhs, rhs, u64::overflowing_add, i64::overflowing_add);
+    fn addition(&mut self, dest_reg: usize, lhs: u64, rhs: u64) {
+        self.exec_arithmetic_operation(dest_reg, lhs, rhs, u64::overflowing_add, i64::overflowing_add);
     }
 
-    /// Helper for subtraction: rA = lhs - rhs
-    fn exec_sub(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
-        self.exec_arith_op(reg_a, lhs, rhs, u64::overflowing_sub, i64::overflowing_sub);
+    fn subtraction(&mut self, dest_reg: usize, lhs: u64, rhs: u64) {
+        self.exec_arithmetic_operation(dest_reg, lhs, rhs, u64::overflowing_sub, i64::overflowing_sub);
     }
 
-    /// Helper for multiplication: rA = lhs * rhs
-    fn exec_mul(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
-        self.exec_arith_op(reg_a, lhs, rhs, u64::overflowing_mul, i64::overflowing_mul);
+    fn multiplication(&mut self, dest_reg: usize, lhs: u64, rhs: u64) {
+        self.exec_arithmetic_operation(dest_reg, lhs, rhs, u64::overflowing_mul, i64::overflowing_mul);
     }
 
-    /// Helper for unsigned division: rA = lhs / rhs
-    fn exec_div_u(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
+    fn unsigned_division(&mut self, dest_reg: usize, lhs: u64, rhs: u64) {
         if rhs == 0 {
             // Division by zero
-            self.regs[reg_a] = 0;
+            self.regs[dest_reg] = 0;
             self.flags.carry = false;
             self.flags.zero = true;
             self.flags.negative = false;
             self.flags.overflow = true;
         } else {
             let result = lhs / rhs;
-            self.regs[reg_a] = result;
+            self.regs[dest_reg] = result;
             self.flags.carry = false;
             self.flags.zero = result == 0;
             self.flags.negative = (result as i64) < 0;
@@ -148,15 +537,14 @@ impl CPU {
         }
     }
 
-    /// Helper for signed division: rA = lhs / rhs (signed)
-    fn exec_div_s(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
+    fn signed_division(&mut self, dest_reg: usize, lhs: u64, rhs: u64) {
         let lhs = lhs as i64;
         let rhs = rhs as i64;
 
         if rhs == 0 {
             // Division by zero
             self.flags.overflow = true;
-            self.regs[reg_a] = 0;
+            self.regs[dest_reg] = 0;
             self.flags.zero = true;
             self.flags.negative = false;
             self.flags.carry = false;
@@ -166,32 +554,31 @@ impl CPU {
             if lhs == i64::MIN && rhs == -1 {
                 // In many architectures this causes an arithmetic exception.
                 // Here, we treat it as overflow.
-                self.regs[reg_a] = lhs.wrapping_div(rhs) as u64;
+                self.regs[dest_reg] = (lhs / rhs) as u64;
                 self.flags.overflow = true;
             } else {
-                self.regs[reg_a] = (lhs / rhs) as u64;
+                self.regs[dest_reg] = (lhs / rhs) as u64;
                 self.flags.overflow = false;
             }
 
-            let result = self.regs[reg_a] as i64;
+            let result = self.regs[dest_reg] as i64;
             self.flags.carry = false;
             self.flags.zero = result == 0;
             self.flags.negative = result < 0;
         }
     }
 
-    /// Helper for unsigned modulo: rA = lhs % rhs
-    fn exec_mod_u(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
+    fn unsigned_modulo(&mut self, dest_reg: usize, lhs: u64, rhs: u64) {
         if rhs == 0 {
             // Modulo by zero
-            self.regs[reg_a] = 0;
+            self.regs[dest_reg] = 0;
             self.flags.carry = false;
             self.flags.zero = true;
             self.flags.negative = false;
             self.flags.overflow = true;
         } else {
             let result = lhs % rhs;
-            self.regs[reg_a] = result;
+            self.regs[dest_reg] = result;
             self.flags.carry = false;
             self.flags.zero = result == 0;
             self.flags.negative = (result as i64) < 0;
@@ -199,22 +586,21 @@ impl CPU {
         }
     }
 
-    /// Helper for signed modulo: rA = lhs % rhs (signed)
-    fn exec_mod_s(&mut self, reg_a: usize, lhs: u64, rhs: u64) {
+    fn signed_modulo(&mut self, dest_reg: usize, lhs: u64, rhs: u64) {
         let lhs_i = lhs as i64;
         let rhs_i = rhs as i64;
 
         if rhs_i == 0 {
             // Modulo by zero
-            self.regs[reg_a] = 0;
+            self.regs[dest_reg] = 0;
             self.flags.carry = false;
             self.flags.zero = true;
             self.flags.negative = false;
             self.flags.overflow = true;
         } else {
             // Unlike division, (i64::MIN % -1) = 0, which doesn't overflow.
-            let result_i = lhs_i.wrapping_rem(rhs_i);
-            self.regs[reg_a] = result_i as u64;
+            let result_i = lhs_i % rhs_i;
+            self.regs[dest_reg] = result_i as u64;
             self.flags.carry = false;
             self.flags.zero = result_i == 0;
             self.flags.negative = result_i < 0;
@@ -222,173 +608,72 @@ impl CPU {
         }
     }
 
-    pub fn exec(&mut self, instruction: u32) {
-        const OPCODE_MASK: u32    = 0xFF000000; // 8 bits for opcode
-        const REG_A_MASK: u32     = 0x00F00000; // 4 bits for first register
-        const REG_B_MASK: u32     = 0x000F0000; // 4 bits for second register
-        const REG_C_MASK: u32     = 0x0000F000; // 4 bits for third register
-        const IMMEDIATE_MASK: u32 = 0x0000FFFF; // 16 bits for immediate
-
-        let opcode = ((instruction & OPCODE_MASK) >> OPCODE_MASK.trailing_zeros()) as u8;
-        let reg_a = ((instruction & REG_A_MASK) >> REG_A_MASK.trailing_zeros()) as usize;
-        let reg_b = ((instruction & REG_B_MASK) >> REG_B_MASK.trailing_zeros()) as u8;
-        let reg_c = ((instruction & REG_C_MASK) >> REG_C_MASK.trailing_zeros()) as u8;
-        let imm16 = (instruction & IMMEDIATE_MASK) as u16;
-        let imm64 = (instruction & IMMEDIATE_MASK) as u64;
-        let three_bits = (instruction & 0b111) as u8;
-        let six_bits = instruction & 0b111111;
-
-        let reg_a_value = self.regs[reg_a];
-        let reg_b_value = self.regs[reg_b as usize];
-        let reg_c_value = self.regs[reg_c as usize];
-
-        let prev_instr_ptr = self.regs[INSTR_PTR];
-
-        match opcode {
-            0x00 /* nop                        */ => {},
-            0x01 /* rA = rB + rC               */ => self.exec_add(reg_a, reg_b_value, reg_c_value),
-            0x02 /* rA = rB + imm              */ => self.exec_add(reg_a, reg_b_value, imm64),
-            0x03 /* rA = rB - rC               */ => self.exec_sub(reg_a, reg_b_value, reg_c_value),
-            0x04 /* rA = rB - imm              */ => self.exec_sub(reg_a, reg_b_value, imm64),
-            0x05 /* rA = imm - rB              */ => self.exec_sub(reg_a, imm64, reg_b_value),
-            0x06 /* rA = rB * rC               */ => self.exec_mul(reg_a, reg_b_value, reg_c_value),
-            0x07 /* rA = rB * imm              */ => self.exec_mul(reg_a, reg_b_value, imm64),
-            0x08 /* rA = rB / rC    (unsigned) */ => self.exec_div_u(reg_a, reg_b_value, reg_c_value),
-            0x09 /* rA = rB / imm   (unsigned) */ => self.exec_div_u(reg_a, reg_b_value, imm64),
-            0x0A /* rA = imm / rB   (unsigned) */ => self.exec_div_u(reg_a, imm64, reg_b_value),
-            0x0B /* rA = rB / rC    (signed)   */ => self.exec_div_s(reg_a, reg_b_value, reg_c_value),
-            0x0C /* rA = rB / imm   (signed)   */ => self.exec_div_s(reg_a, reg_b_value, imm64),
-            0x0D /* rA = imm / rB   (signed)   */ => self.exec_div_s(reg_a, imm64, reg_b_value),
-            0x0E /* rA = rB & rC               */ => self.regs[reg_a] = reg_b_value & reg_c_value,
-            0x0F /* rA = rB | rC               */ => self.regs[reg_a] = reg_b_value | reg_c_value,
-            0x10 /* rA = rB ^ rC               */ => self.regs[reg_a] = reg_b_value ^ reg_c_value,
-            0x11 /* rA = !rB                   */ => self.regs[reg_a] = !reg_b_value,
-            0x12 /* rA = !(rB & rC)            */ => self.regs[reg_a] = !(reg_b_value & reg_c_value),
-            0x13 /* rA = !(rB | rC)            */ => self.regs[reg_a] = !(reg_b_value | reg_c_value),
-            0x14 /* rA = !(rB ^ rC)            */ => self.regs[reg_a] = !(reg_b_value ^ reg_c_value),
-            0x15 /* rA = rB % rC    (unsigned) */ => self.exec_mod_u(reg_a, reg_b_value, reg_c_value),
-            0x16 /* rA = rB % imm   (unsigned) */ => self.exec_mod_u(reg_a, reg_b_value, imm64),
-            0x17 /* rA = imm % rB   (unsigned) */ => self.exec_mod_u(reg_a, imm64, reg_b_value),
-            0x18 /* rA = rB % rC    (signed)   */ => self.exec_mod_s(reg_a, reg_b_value, reg_c_value),
-            0x19 /* rA = rB % imm   (signed)   */ => self.exec_mod_s(reg_a, reg_b_value, imm64),
-            0x1A /* rA = imm % rB   (signed)   */ => self.exec_mod_s(reg_a, imm64, reg_b_value),
-            0x1B /* rA = rB >> rC              */ => self.regs[reg_a] = reg_b_value.checked_shr(reg_c_value as u32).unwrap_or(0),
-            0x1C /* rA = rB >> imm             */ => self.regs[reg_a] = reg_b_value.checked_shr(six_bits).unwrap_or(0),
-            0x1D /* rA = rB << rC              */ => self.regs[reg_a] = reg_b_value.checked_shl(reg_c_value as u32).unwrap_or(0),
-            0x1E /* rA = rB << imm             */ => self.regs[reg_a] = reg_b_value.checked_shl(six_bits).unwrap_or(0),
-            0x1F /* ror                        */ => self.regs[reg_a] = reg_b_value.rotate_right(1),
-            0x20 /* rol                        */ => self.regs[reg_a] = reg_b_value.rotate_left(1),
-            0x21 /* rA = rB                    */ => self.regs[reg_a] = reg_b_value,
-            0x22 /* ldi                        */ => self.regs[reg_a] = Self::ldi(reg_a_value, (instruction & (0b11 << 16)) >> 16, imm16),
-            0x23 /* UNUSED                     */ => { #[cfg(test)] { println!("This opcode is unused") } #[cfg(not(test))] { unimplemented!("This opcode is unused") }},
-            0x24 /* rA = memory[rB]            */ => self.load_memory_to_register(reg_a, reg_b_value, three_bits),
-            0x25 /* rA = memory[imm]           */ => self.load_memory_to_register_imm(reg_a, imm16, three_bits),
-            0x26 /* memory[rB] = rA            */ => self.store_register_to_memory(self.regs[reg_a], reg_b_value, three_bits),
-            0x27 /* memory[imm] = rA           */ => self.store_register_to_memory_imm(self.regs[reg_a], imm16, three_bits),
-            0x28 /* push                       */ => { #[cfg(test)] { println!("Push not implemented") } #[cfg(not(test))] { unimplemented!("Push not implemented") }},
-            0x29 /* pop                        */ => { #[cfg(test)] { println!("Pop not implemented") } #[cfg(not(test))] { unimplemented!("Pop not implemented") } },
-            0x2A /* rA.cmp(rB)      (unsigned) */ => self.compare(reg_a_value, reg_b_value),
-            0x2B /* rA.cmp(imm)     (unsigned) */ => self.compare(reg_a_value, imm64),
-            0x2C /* imm.cmp(rA)     (unsigned) */ => self.compare(imm64, reg_a_value),
-            0x2D /* rA.cmp(rB)      (signed)   */ => self.compare(reg_a_value as i64, reg_b_value as i64),
-            0x2E /* rA.cmp(imm)     (signed)   */ => self.compare(reg_a_value as i64, imm64 as i64),
-            0x2F /* imm.cmp(rA)     (signed)   */ => self.compare(imm64 as i64, reg_a_value as i64),
-            0x30 /* b                          */ => self.branch_u64(true, reg_a_value),
-            0x31 /* b                          */ => self.branch_u16(true, imm16),
-            0x32 /* bg                         */ => self.branch_u64(self.flags.greater, reg_a_value),
-            0x33 /* bg                         */ => self.branch_u16(self.flags.greater, imm16),
-            0x34 /* be                         */ => self.branch_u64(self.flags.equal, reg_a_value),
-            0x35 /* be                         */ => self.branch_u16(self.flags.greater, imm16),
-            0x36 /* bs                         */ => self.branch_u64(self.flags.smaller, reg_a_value),
-            0x37 /* bs                         */ => self.branch_u16(self.flags.smaller, imm16),
-            0x38 /* bng                        */ => self.branch_u64(!self.flags.greater, reg_a_value),
-            0x39 /* bng                        */ => self.branch_u16(!self.flags.greater, imm16),
-            0x3A /* bne                        */ => self.branch_u64(!self.flags.equal, reg_a_value),
-            0x3B /* bne                        */ => self.branch_u16(!self.flags.equal, imm16),
-            0x3C /* bns                        */ => self.branch_u64(!self.flags.smaller, reg_a_value),
-            0x3D /* bns                        */ => self.branch_u16(!self.flags.smaller, imm16),
-            (0x3E..=0xFF) => { #[cfg(test)] { println!("Unknown opcode: {:#x}", opcode) } #[cfg(not(test))] { unimplemented!("Unknown opcode {:#x}", opcode) } },
-        }
-
-        let curr_instr_ptr = self.regs[INSTR_PTR];
-
-        if prev_instr_ptr == curr_instr_ptr {
-            self.regs[INSTR_PTR] = self.regs[INSTR_PTR].wrapping_add(4);
-        }
+    fn set_chunk(reg: u64, data: u16, chunk: u8) -> u64 {
+        assert!(chunk < 4);
+        let shift = chunk * 16;
+        let mask: u64 = 0xFFFF << shift;
+        (reg & !mask) | ((data as u64) << shift)
     }
 
-    fn branch_u16(&mut self, condition: bool, offset: u16) {
-        if condition {
-            let current_ip = self.regs[INSTR_PTR] as i64;
-            self.regs[INSTR_PTR] = (offset as i16 as i64).wrapping_mul(4).wrapping_add(current_ip) as u64;
-        }
-    }
-    
-    fn branch_u64(&mut self, condition: bool, offset: u64) {
-        if condition {
-            let current_ip = self.regs[INSTR_PTR] as i64;
-            self.regs[INSTR_PTR] = (offset as i64).wrapping_mul(4).wrapping_add(current_ip) as u64;
-        }
-    }
-
-    /// Load a byte from memory at the address in `reg_b`, modify the specified byte in `reg_a`.
-    fn load_memory_to_register(&mut self, reg_a: usize, reg_b_value: u64, byte_pos: u8) {
-        let address = reg_b_value as usize;
-        if address >= self.memory.len() {
-            println!("Memory access out of bounds: address {}", address);
-            return;
-        }
-        self.regs[reg_a] = Self::set_byte(self.regs[reg_a], byte_pos, self.memory[address]);
-    }
-
-    /// Load a byte from memory at the immediate address, modify the specified byte in `reg_a`.
-    fn load_memory_to_register_imm(&mut self, reg_a: usize, imm16: u16, byte_pos: u8) {
-        let address = imm16 as usize;
-        if address >= self.memory.len() {
-            println!("Memory access out of bounds: address {}", address);
-            return;
-        }
-        self.regs[reg_a] = Self::set_byte(self.regs[reg_a], byte_pos, self.memory[address]);
-    }
-
-    /// Store a byte from `reg_a` into memory at the address in `reg_b`.
-    fn store_register_to_memory(&mut self, reg_a_value: u64, reg_b_value: u64, byte_pos: u8) {
-        let address = reg_b_value as usize;
-        if address >= self.memory.len() {
-            println!("Memory access out of bounds: address {}", address);
-            return;
-        }
-        self.memory[address] = Self::get_byte(reg_a_value, byte_pos);
-    }
-
-    /// Store a byte from `reg_a` into memory at the immediate address.
-    fn store_register_to_memory_imm(&mut self, reg_a_value: u64, imm16: u16, byte_pos: u8) {
-        let address = imm16 as usize;
-        if address >= self.memory.len() {
-            println!("Memory access out of bounds: address {}", address);
-            return;
-        }
-        self.memory[address] = Self::get_byte(reg_a_value, byte_pos);
-    }
-
-    fn ldi(reg: u64, slice: u32, imm: u16) -> u64 {
-        assert!(slice <= 3); // TODO: This might panic for now, in the future this would trigger an interrupt
-        let shift = slice * 16;
-        let mask = !(0xFFFF << shift);
-        (reg & mask) | ((imm as u64) << shift)
-    }
-
-    fn set_byte(v: u64, byte: u8, new: u8) -> u64 {
-        assert!(byte <= 7); // TODO: This might panic for now, in the future this would trigger an interrupt
+    fn set_byte(reg: u64, data: u8, byte: u8) -> u64 {
+        assert!(byte < 8);
         let shift = byte * 8;
-        let cleared_v = v & !(0xFFu64 << shift); // Clear target byte
-        cleared_v | ((new as u64) << shift)
+        let mask: u64 = 0xFF << shift;
+        (reg & !mask) | ((data as u64) << shift)
     }
 
-    fn get_byte(v: u64, byte: u8) -> u8 {
-        assert!(byte <= 7); // TODO: This might panic for now, in the future this would trigger an interrupt
+    fn get_byte(reg: u64, byte: u8) -> u8 {
+        assert!(byte < 8);
         let shift = byte * 8;
-        ((v >> shift) & 0xFF) as u8
+        ((reg & (0xFF << shift)) >> shift) as u8
+    }
+
+    /// This prints the message when cargo is using the test profile, otherwise it panics
+    fn complain(msg: impl Display) {
+        #[cfg(test)] {
+            println!("{}", msg);
+        }
+
+        #[cfg(not(test))] {
+            panic!("{}", msg);
+        }
+    }
+
+    #[allow(dead_code)] // To avoid annoying "duplicate code" warning   TODO: REMOVE THIS
+    fn fetch_instruction(&mut self, address: usize) -> u32 {
+        let byte1 = self.memory[address] as u32;
+        let byte2 = self.memory[address + 1] as u32;
+        let byte3 = self.memory[address + 2] as u32;
+        let byte4 = self.memory[address + 3] as u32;
+        (byte1 << 24) | (byte2 << 16) | (byte3 << 8) | byte4
+    }
+}
+
+trait NthRoot {
+    fn nth_root(self, n: Self) -> Self;
+}
+
+impl NthRoot for f32 {
+    fn nth_root(self, n: f32) -> Self {
+        // If n is zero or negative, return NaN.
+        if n <= 0.0 {
+            return f32::NAN;
+        }
+
+        // Calculate the nth root as value^(1/n).
+        self.powf(1.0 / n)
+    }
+}
+
+impl NthRoot for f64 {
+    fn nth_root(self, n: f64) -> Self {
+        // If n is zero or negative, return NaN.
+        if n <= 0.0 {
+            return f64::NAN;
+        }
+
+        // Calculate the nth root as value^(1/n).
+        self.powf(1.0 / n)
     }
 }
 
@@ -401,7 +686,7 @@ mod tests {
 
     #[test]
     fn stress_test() {
-        let mut cpu = CPU::new();
+        let mut cpu = CPU::default();
         let iterations = 1_000_000;
 
         for i in 0..iterations {
