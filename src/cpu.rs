@@ -400,7 +400,6 @@ impl CPU {
         let dest = ((instruction & DEST_REG_MASK) >> DEST_REG_MASK.trailing_zeros()) as usize;
         let src1 = ((instruction & SRC1_REG_MASK) >> SRC1_REG_MASK.trailing_zeros()) as usize;
         let src2 = ((instruction & SRC2_REG_MASK) >> SRC2_REG_MASK.trailing_zeros()) as usize;
-        let comparison = instruction & COMPARISON_MASK;
         let operation = instruction & OPERATION_MASK;
 
         let a = f32::from_bits(self.regs[dest] as u32);
