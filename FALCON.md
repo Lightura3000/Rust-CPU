@@ -29,8 +29,8 @@ Opcode
           Src reg1
           vvvv
 0001 AAAA BBBB CCCC 0000 0000 0000 OOOO
-^^^^  ^^^^     ^^^^                ^^^^
-Opc   Dest reg  Src reg           Operation
+^^^^ ^^^^      ^^^^                ^^^^
+Opc  Dest reg  Src reg2            Operation
 
 (b)
           Src reg
@@ -92,7 +92,7 @@ This instruction performs a bitwise operation between two registers. Which one e
           vvvv
 0011 AAAA BBBB CCCC 0000 0000 0000 0OOO
 ^^^^ ^^^^      ^^^^                 ^^^
-Opc  Dest reg  Src reg              Operation
+Opc  Dest reg  Src reg2             Operation
 
 (b)
           Src reg          Immediate
@@ -141,6 +141,11 @@ Opc  Dest reg                       Operation
 0100 AAAA IIII IIII IIII IIII 0SSS 0OOO
 ^^^^ ^^^^                           ^^^
 Opc  Dest reg                       Operation
+
+(e)
+0100 AAAA 0000 0000 0000 0000 0000 0OOO
+^^^^ ^^^^                           ^^^
+Opc  Reg                            Operation
 ```
 
 This instruction is for moving data between registers, memory and stack operations. Which operation is executed exactly depends on the operation (`O`) bits:
@@ -150,8 +155,8 @@ This instruction is for moving data between registers, memory and stack operatio
 - `011 (3)` Load from immediate address (bit pattern `d`). Loads a byte from memory addressed by the `immediate` into register `A`. The `S` bits signify which byte of `A` is changed (0 = least significant, 7 = most significant)
 - `100 (4)` Store register (bit pattern `c`). Stores a byte from register `A` into memory addressed by register `B`. The `S` bits signify which byte is addressed (0 = least significant, 7 = most significant)
 - `101 (5)` Store immediate address (bit pattern `d`). Stores a byte from register `A` into memory addressed by the `immediate`. The `S` bits signify which byte is addressed (0 = least significant, 7 = most significant)
-- `110 (6)` Push (bit pattern `a`). Pushes register `A` to the stack and increases the stack pointer
-- `111 (7)` Pop (bit pattern `a`). Pops from the stack to register `A` and decreases the stack pointer
+- `110 (6)` Push (bit pattern `e`). Pushes register `A` to the stack and increases the stack pointer
+- `111 (7)` Pop (bit pattern `e`). Pops from the stack to register `A` and decreases the stack pointer
 
 ## 6. Comparison
 ```
