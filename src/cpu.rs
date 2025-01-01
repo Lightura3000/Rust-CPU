@@ -639,22 +639,24 @@ impl NthRoot for f64 {
     }
 }
 
-
-/// cargo test cpu -- --nocapture
 #[cfg(test)]
 mod tests {
     use super::*;
     use rand::Rng;
 
     #[test]
+    #[ignore]
     fn stress_test() {
+        let iterations = 10_000_000;
+
         let mut cpu = CPU::default();
-        let iterations = 1_000_000;
+        let fill = iterations.to_string().len();
 
         for i in 0..iterations {
             let random_instr = rand::thread_rng().gen_range(0x00000000..=0x3D000000);
             cpu.exec(random_instr);
-            println!("{:07}. {:#010x}", i+1, random_instr);
+
+            println!("{:0fill$}. {:#010x}", i+1, random_instr);
         }
 
         println!("Registers after stress test: {:?}", cpu.regs);
