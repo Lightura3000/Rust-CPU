@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::fmt::Display;
 
 type InstrFn = fn(&mut CPU, u32);
+const MEMORY_SIZE: usize = 4096;
 const INSTR_PTR: usize = 15;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -65,7 +66,8 @@ pub struct Flags {
 }
 
 impl CPU {
-    pub fn new(regs: [u64; 16], memory: [u8; 4096], privileged: bool, flags: Flags) -> Self {
+    #[allow(dead_code)]
+    pub fn new(regs: [u64; 16], memory: [u8; MEMORY_SIZE], privileged: bool, flags: Flags) -> Self {
         Self {
             regs,
             memory,
@@ -77,7 +79,7 @@ impl CPU {
     pub fn default() -> Self {
         Self {
             regs: [0; 16],
-            memory: [0; 4096],
+            memory: [0; MEMORY_SIZE],
             privileged: true,
             flags: Flags::default(),
         }
