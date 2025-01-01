@@ -6,7 +6,7 @@ use constructor::{Instruction, U2, U3, U6, Register::*};
 use cpu::CPU;
 
 fn main() {
-    let code = vec![
+    let code = [
         Instruction::LoadImmediate { dest: R0, slice: U2::new(0).unwrap(), imm: 1},
         Instruction::LoadImmediate { dest: R1, slice: U2::new(0).unwrap(), imm: 1},
         Instruction::Add { dest: R2, a: R0, b: Left(R1) },
@@ -40,7 +40,7 @@ fn main() {
     println!("Registers after execution: {:?}", cpu.regs);
 }
 
-fn load_program(cpu: &mut CPU, program: &Vec<u32>) {
+fn load_program(cpu: &mut CPU, program: &[u32]) {
     let mut mem = 0;
 
     // Ensure the program fits into memory
