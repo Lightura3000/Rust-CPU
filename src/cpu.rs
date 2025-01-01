@@ -497,7 +497,7 @@ impl CPU {
                 Self::complain(format!("Invalid operation: {comparison:#04x}"));
                 return;
             }
-        }.to_bits() as u64
+        }.to_bits()
     }
 
     /// Helper function to perform an unsigned arithmetic operation and set flags
