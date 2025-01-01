@@ -116,12 +116,16 @@ impl CPU {
 
         let opcode = ((instruction & OPCODE_MASK) >> OPCODE_MASK.trailing_zeros()) as usize;
 
+        let prev_instr_ptr = self.regs[INSTR_PTR];
+
         match INSTRUCTION_TABLE.get(opcode) {
             None => Self::complain(format!("Invalid instruction: {:#010x}", instruction)),
             Some(function) => function(self, instruction),
         }
 
-        self.regs[INSTR_PTR] += 4;
+        if self.regs[INSTR_PTR] == prev_instr_ptr {
+            self.regs[INSTR_PTR] += 4;
+        }
     }
 
     fn execute_arithmetic_operations(&mut self, instruction: u32) {

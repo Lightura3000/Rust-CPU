@@ -1,29 +1,32 @@
 mod cpu;
 mod constructor;
 
+use either::{Left, Right};
+use constructor::{Instruction, U2, U3, U6, Register::*};
 use cpu::CPU;
-use constructor::{Instruction, Register::*};
 
 fn main() {
-    let instructions: Vec<Instruction> = vec![
-        Instruction::Add { dest: R2, a: R0, b: R1 },
-        Instruction::AddImm { dest: R2, a: R2, b: 5 },
-        Instruction::BI { amount: -1 },
+    let code = vec![
+        Instruction::LoadImmediate { dest: R0, slice: U2::new(0).unwrap(), imm: 1},
+        Instruction::LoadImmediate { dest: R1, slice: U2::new(0).unwrap(), imm: 2},
+        Instruction::Add { dest: R2, a: R0, b: Left(R1) }
     ];
 
-    let program = instructions.iter().map(|instr| instr.assemble()).collect::<Vec<_>>();
+    let program = code
+        .iter()
+        .map(|e| e.assemble())
+        .collect::<Vec<u32>>();
 
+    println!("Code:");
+    code.iter().for_each(|i| println!("{:?}", i));
     println!("Instructions:");
-    instructions.iter().for_each(|instruction| println!("{:?}", instruction));
-    println!("Assembled:");
     program.iter().for_each(|instruction| println!("{:#010x}", instruction));
 
-
-    let mut cpu = CPU::new();
+    let mut cpu = CPU::default();
 
     // Setup
-    cpu.regs[0] = 1;
-    cpu.regs[1] = 2;
+    // cpu.regs[0] = 1;
+    // cpu.regs[1] = 2;
 
     load_program(&mut cpu, &program);
 
