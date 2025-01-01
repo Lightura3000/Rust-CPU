@@ -95,6 +95,12 @@ impl Into<u32> for Opcode {
     }
 }
 
+impl Into<u32> for Register {
+    fn into(self) -> u32 {
+        self as u32
+    }
+}
+
 #[repr(u32)]
 #[derive(Debug, Copy, Clone)]
 #[allow(dead_code)]
@@ -448,11 +454,5 @@ impl Instruction {
             Instruction::DoubleToInteger { dest, src } => Self::denibble([Opcode::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x6]),
             Instruction::DoubleToFloat { dest, src } => Self::denibble([Opcode::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x7]),
         }
-    }
-}
-
-impl Into<u32> for Register {
-    fn into(self) -> u32 {
-        self as u32
     }
 }
