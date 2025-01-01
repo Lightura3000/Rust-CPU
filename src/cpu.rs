@@ -439,7 +439,7 @@ impl CPU {
             0x1D => (a - b).abs(),
             0x1E => f32::INFINITY,
             0x1F => f32::NAN,
-            _ => unreachable!("Invalid operation: {comparison:#04x}"),
+            _ => unreachable!("Invalid operation: {:#04x}", instruction & COMPARISON_MASK),
         }.to_bits() as u64
     }
 
