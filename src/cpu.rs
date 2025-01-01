@@ -114,7 +114,7 @@ impl CPU {
 
         const OPCODE_MASK: u32 = 0xF0000000;
 
-        let opcode = ((instruction & OPCODE_MASK) >> 28) as usize;
+        let opcode = ((instruction & OPCODE_MASK) >> OPCODE_MASK.trailing_zeros()) as usize;
 
         match INSTRUCTION_TABLE.get(opcode) {
             None => Self::complain(format!("Invalid instruction: {:#010x}", instruction)),
@@ -148,7 +148,10 @@ impl CPU {
             0x5 | 0x6       => Self::multiplication,
             0x7 | 0x8 | 0x9 => Self::unsigned_division,
             0xA | 0xB | 0xC => Self::signed_division,
-            _ => panic!("Invalid arithmetic operation code: {operation:#010X}"),
+            _ => {
+                Self::complain(format!("Invalid arithmetic operation code: {operation:#010X}"));
+                return;
+            },
         };
 
         // decide which operands (lhs, rhs) to pass
@@ -166,7 +169,7 @@ impl CPU {
             0xA => (b,   c),
             0xB => (b,   imm),
             0xC => (imm, b),
-            _ => panic!("Invalid arithmetic operation code: {operation:#010X}"),
+            _ => unreachable!("Invalid arithmetic operation code: {operation:#010X}. This should not happen."),
         };
 
         // call the chosen arithmetic function with the decoded operands
@@ -227,7 +230,7 @@ impl CPU {
             5 => b.rotate_right(imm as u32),
             6 => b.rotate_left(c as u32),
             7 => b.rotate_left(imm as u32),
-            _ => panic!("Invalid operation code: {operation:#010x}"),
+            _ => unreachable!("Invalid operation code: {operation:#010x}"),
         }
     }
 
@@ -235,7 +238,6 @@ impl CPU {
         const OPERATION_MASK: u32 = 0b111;
         const DEST_REG_MASK: u32  = 0x0F00_0000;
         const SRC1_REG_MASK: u32  = 0x00F0_0000;
-        const SRC2_REG_MASK: u32  = 0x000F_0000;
         const IMMEDIATE_MASK: u32 = 0x00FF_FF00;
         const SECTION_MASK: u32 = 0b0111_0000;
 
@@ -260,7 +262,7 @@ impl CPU {
             5 => self.memory[imm as usize] = Self::get_byte(self.regs[dest], section),
             6 => Self::complain("Push not implemented yet"),
             7 => Self::complain("Pop not implemented yet"),
-            _ => Self::complain(format!("Invalid operation code: {operation:#04x}")),
+            _ => unreachable!("Invalid operation code: {operation:#04x}"),
         }
     }
 
@@ -353,8 +355,8 @@ impl CPU {
             0xB => branch_u16(self, !self.flags.equal, imm_offset),
             0xC => branch_u64(self, self.flags.smaller || self.flags.equal, reg_offset),
             0xD => branch_u16(self, self.flags.smaller || self.flags.equal, imm_offset),
-            0xE | 0xF => Self::complain(format!("Line {}: Using unassigned branching condition {:#x}", line!(), branch_condition)),
-            _ => Self::complain(format!("Invalid branching code: {branch_condition:#04x}")),
+            0xE | 0xF => Self::complain(format!("Using unassigned branching condition {:#x}", branch_condition)),
+            _ => unreachable!("Invalid branching code: {branch_condition:#04x}"),
         }
     }
 
@@ -432,10 +434,7 @@ impl CPU {
             0x1D => (a - b).abs(),
             0x1E => f32::INFINITY,
             0x1F => f32::NAN,
-            _ => {
-                Self::complain(format!("Invalid operation: {comparison:#04x}"));
-                return;
-            }
+            _ => unreachable!("Invalid operation: {comparison:#04x}"),
         }.to_bits() as u64
     }
 
@@ -556,7 +555,7 @@ impl CPU {
             if lhs == i64::MIN && rhs == -1 {
                 // In many architectures this causes an arithmetic exception.
                 // Here, we treat it as overflow.
-                self.regs[dest_reg] = (lhs / rhs) as u64;
+                self.regs[dest_reg] = lhs.wrapping_div(rhs) as u64;
                 self.flags.overflow = true;
             } else {
                 self.regs[dest_reg] = (lhs / rhs) as u64;
@@ -567,46 +566,6 @@ impl CPU {
             self.flags.carry = false;
             self.flags.zero = result == 0;
             self.flags.negative = result < 0;
-        }
-    }
-
-    fn unsigned_modulo(&mut self, dest_reg: usize, lhs: u64, rhs: u64) {
-        if rhs == 0 {
-            // Modulo by zero
-            self.regs[dest_reg] = 0;
-            self.flags.carry = false;
-            self.flags.zero = true;
-            self.flags.negative = false;
-            self.flags.overflow = true;
-        } else {
-            let result = lhs % rhs;
-            self.regs[dest_reg] = result;
-            self.flags.carry = false;
-            self.flags.zero = result == 0;
-            self.flags.negative = (result as i64) < 0;
-            self.flags.overflow = false;
-        }
-    }
-
-    fn signed_modulo(&mut self, dest_reg: usize, lhs: u64, rhs: u64) {
-        let lhs_i = lhs as i64;
-        let rhs_i = rhs as i64;
-
-        if rhs_i == 0 {
-            // Modulo by zero
-            self.regs[dest_reg] = 0;
-            self.flags.carry = false;
-            self.flags.zero = true;
-            self.flags.negative = false;
-            self.flags.overflow = true;
-        } else {
-            // Unlike division, (i64::MIN % -1) = 0, which doesn't overflow.
-            let result_i = lhs_i % rhs_i;
-            self.regs[dest_reg] = result_i as u64;
-            self.flags.carry = false;
-            self.flags.zero = result_i == 0;
-            self.flags.negative = result_i < 0;
-            self.flags.overflow = false;
         }
     }
 
@@ -641,7 +600,6 @@ impl CPU {
         }
     }
 
-    #[allow(dead_code)] // To avoid annoying "duplicate code" warning   TODO: REMOVE THIS
     fn fetch_instruction(&mut self, address: usize) -> u32 {
         let byte1 = self.memory[address] as u32;
         let byte2 = self.memory[address + 1] as u32;
