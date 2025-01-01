@@ -8,8 +8,11 @@ use cpu::CPU;
 fn main() {
     let code = vec![
         Instruction::LoadImmediate { dest: R0, slice: U2::new(0).unwrap(), imm: 1},
-        Instruction::LoadImmediate { dest: R1, slice: U2::new(0).unwrap(), imm: 2},
-        Instruction::Add { dest: R2, a: R0, b: Left(R1) }
+        Instruction::LoadImmediate { dest: R1, slice: U2::new(0).unwrap(), imm: 1},
+        Instruction::Add { dest: R2, a: R0, b: Left(R1) },
+        Instruction::Move{dest:R0,src:R1},
+        Instruction::Move{dest:R1,src:R2},
+        Instruction::Branch{amount:Right(-3)}
     ];
 
     let program = code
@@ -32,7 +35,7 @@ fn main() {
 
     cpu.set_instruction_ptr(0);
 
-    cpu.run(10);
+    cpu.run(20);
 
     println!("Registers after execution: {:?}", cpu.regs);
 }
