@@ -1,9 +1,9 @@
 mod cpu;
 mod constructor;
 
-use either::{Left, Right};
-use constructor::{Instruction, U2, U3, U6, Register::*};
+use constructor::{Instruction, Register::*, U2};
 use cpu::CPU;
+use either::{Left, Right};
 
 fn main() {
     let code = [
@@ -26,10 +26,6 @@ fn main() {
     program.iter().for_each(|instruction| println!("{:#010x}", instruction));
 
     let mut cpu = CPU::default();
-
-    // Setup
-    // cpu.regs[0] = 1;
-    // cpu.regs[1] = 2;
 
     load_program(&mut cpu, &program);
 
