@@ -1,0 +1,9 @@
+ldi r0 0 1
+ldi r1 0 1
+
+.loop
+add r2 r0 r1
+mov r0 r1
+mov r1 r2
+b 99999999
+

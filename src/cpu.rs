@@ -1,5 +1,4 @@
-use std::cmp::Ordering;
-use std::fmt::Display;
+use std::{cmp::Ordering, fmt::Display};
 
 type InstrFn = fn(&mut CPU, u32);
 const MEMORY_SIZE: usize = 4096;
@@ -155,7 +154,7 @@ impl CPU {
             0x7 | 0x8 | 0x9 => Self::unsigned_division,
             0xA | 0xB | 0xC => Self::signed_division,
             _ => {
-                Self::complain(format!("Invalid arithmetic operation code: {operation:#010X}"));
+                Self::complain(format!("Invalid arithmetic operation code in instruction: {:#010X}", instruction));
                 return;
             },
         };
@@ -175,7 +174,7 @@ impl CPU {
             0xA => (b,   c),
             0xB => (b,   imm),
             0xC => (imm, b),
-            _ => unreachable!("Invalid arithmetic operation code: {operation:#010X}. This should not happen."),
+            _ => unreachable!("Invalid arithmetic operation code in instruction: {:#010X}. This should not happen.", instruction),
         };
 
         // call the chosen arithmetic function with the decoded operands

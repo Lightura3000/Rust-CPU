@@ -1,33 +1,28 @@
 mod cpu;
-mod constructor;
+mod assembler;
 
-use constructor::{Instruction, Register::*, U2};
+use assembler::assemble::assemble;
 use cpu::CPU;
-use either::{Left, Right};
 
 fn main() {
-    let code = [
-        Instruction::LoadImmediate { dest: R0, slice: U2::new(0).unwrap(), imm: 1},
-        Instruction::LoadImmediate { dest: R1, slice: U2::new(0).unwrap(), imm: 1},
-        Instruction::Add { dest: R2, a: R0, b: Left(R1) },
-        Instruction::Move{dest:R0,src:R1},
-        Instruction::Move{dest:R1,src:R2},
-        Instruction::Branch{amount:Right(-3)}
-    ];
+    let file = "scripts/fibonacci";
 
-    let program = code
-        .iter()
-        .map(|e| e.assemble())
-        .collect::<Vec<u32>>();
+    let file_content = std::fs::read_to_string(file).unwrap();
 
-    println!("Code:");
-    code.iter().for_each(|i| println!("{:?}", i));
-    println!("Instructions:");
-    program.iter().for_each(|instruction| println!("{:#010x}", instruction));
+    let instructions = match assemble(file_content) {
+        Ok(instructions) => instructions,
+        Err(err_msg) => {
+            println!("{}", err_msg);
+            return;
+        }
+    };
+
+    println!("Assembled into {} instructions:", instructions.len());
+    instructions.iter().for_each(|instruction| println!("{:#010x}", instruction));
 
     let mut cpu = CPU::default();
 
-    load_program(&mut cpu, &program);
+    load_program(&mut cpu, &instructions);
 
     cpu.set_instruction_ptr(0);
 
