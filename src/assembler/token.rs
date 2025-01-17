@@ -10,10 +10,10 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn try_construct(line: usize, value: &str) -> Option<Token> {
-        match TokenVariant::try_from(value) {
-            None => None,
-            Some(token_type) => Some(Self { line, variant: token_type }),
+    pub fn construct(line: usize, value: &str) -> Token {
+        Self {
+            line,
+            variant: value.into(),
         }
     }
 }
@@ -26,24 +26,25 @@ pub enum TokenVariant {
     Signed(i16),
     Register(Register),
     Bool(bool),
+    Unknown,
 }
 
-impl TokenVariant {
-    fn try_from(value: &str) -> Option<TokenVariant> {
+impl From<&str> for TokenVariant {
+    fn from(value: &str) -> Self {
         if let Ok(opcode) = value.try_into() {
-            Some(TokenVariant::Opcode(opcode))
+            Self::Opcode(opcode)
         } else if value.chars().nth(0) == Some('.') {
-            Some(TokenVariant::Label(value.to_owned()))
+            Self::Label(value.to_owned())
         } else if let Ok(value) = value.parse::<u16>() {
-            Some(TokenVariant::Unsigned(value))
+            Self::Unsigned(value)
         } else if let Ok(value) = value.parse::<i16>() {
-            Some(TokenVariant::Signed(value))
+            Self::Signed(value)
         } else if let Ok(register) = value.try_into() {
-            Some(TokenVariant::Register(register))
+            Self::Register(register)
         } else if let Ok(boolean) = value.parse::<bool>() {
-            Some(TokenVariant::Bool(boolean))
+            Self::Bool(boolean)
         } else {
-            None
+            Self::Unknown
         }
     }
 }

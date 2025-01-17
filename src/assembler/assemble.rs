@@ -5,57 +5,41 @@ use crate::assembler::{
     opcode::Opcode,
     register::Register,
     token::{Token, TokenVariant::*},
-    tokenize::tokenize
+    assembly_error::{AssemblyError, AssemblyErrorVariant},
 };
 
-enum AssemblyError {
-    NeedsStartingOpcode,
-    ParamAmount { expected: usize, got: usize },
-    ParamTypes,
-    ImmediateTooLarge { max: u16, got: u16 },
-    NoLabelFound { name: String },
-    OffsetTooLarge { limit: i32, required: i64 },
-}
-
-impl Display for AssemblyError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let str = match self {
-            AssemblyError::NeedsStartingOpcode => "Line needs to start with an opcode".to_string(),
-            AssemblyError::ParamAmount { expected, got } => format!("Expected {} parameters, got {}", expected, got),
-            AssemblyError::ParamTypes => "Arguments have invalid types".to_string(),
-            AssemblyError::ImmediateTooLarge { max, got } => format!("Immediate is too large. Maximum is {} but got {}", max, got),
-            AssemblyError::NoLabelFound { name } => format!("No label named {} found", name),
-            AssemblyError::OffsetTooLarge { limit, required } => format!("Offset is too large. Required {} but limit is {}", required, limit),
-        };
-        write!(f, "{}", str)
-    }
-}
-
 pub fn assemble(src: String) -> Result<Vec<u32>, String> {
-    let mut instructions = vec![];
+    let mut instructions = Vec::new();
     let mut labels = HashMap::new();
 
     let token_lines = tokenize(&src);
 
-    for (line_i, line) in token_lines.iter().enumerate() {
-        match assemble_line(line_i, line, &mut labels) {
-            Some(Ok(instruction)) => instructions.push(instruction),
-            Some(Err(error)) => return Err(format!("Line {}: {}", line_i + 1, error.to_string())),
-            None => {},
+    for tokens in token_lines.iter() {
+        let first_token = match tokens.first() {
+            None => panic!("Empty token line"),
+            Some(token) => token
+        };
+
+        let line = first_token.line;
+
+        if let Label(name) = &first_token.variant {
+            labels.insert(name.to_owned(), line);
+            continue;
+        }
+
+        match assemble_line(line, tokens, &mut labels) {
+            Ok(instruction) => instructions.push(instruction),
+            Err(error_variant) => return Err(AssemblyError { line, variant: error_variant }.to_string()),
         }
     }
 
     Ok(instructions.iter().map(|instr| instr.assemble()).collect::<Vec<_>>())
 }
 
-fn assemble_line(line_i: usize, line_tokens: &[Token], labels: &mut HashMap<String, usize>) -> Option<Result<Instruction, AssemblyError>> {
+fn assemble_line(line_i: usize, line_tokens: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyErrorVariant> {
     let opcode = match &line_tokens.first().unwrap().variant {
         Opcode(opc) => opc,
-        Label(name) => {
-            labels.insert(name.to_owned(), line_i);
-            return None;
-        }
-        _ => return Some(Err(AssemblyError::NeedsStartingOpcode)),
+        _ => return Err(AssemblyErrorVariant::NeedsStartingOpcode),
     };
 
     let params = &line_tokens[1..];
@@ -105,94 +89,114 @@ fn assemble_line(line_i: usize, line_tokens: &[Token], labels: &mut HashMap<Stri
     }.into()
 }
 
-fn expect_param_amount(params: &[Token], expected: usize) -> Result<(), AssemblyError> {
+fn tokenize(src: &String) -> Vec<Vec<Token>> {
+    let mut tokens = Vec::new();
+
+    for (line, content) in src.lines().enumerate() {
+        let mut line_tokens = Vec::new();
+
+        for split in content.split_whitespace() {
+            line_tokens.push(Token::construct(line, split));
+        }
+
+        if line_tokens.len() > 0 {
+            tokens.push(line_tokens);
+        }
+    }
+
+    // tokens.iter().for_each(|token| println!("{:?}", token));
+
+    tokens
+}
+
+fn expect_param_amount(params: &[Token], expected: usize) -> Result<(), AssemblyErrorVariant> {
     if params.len() != expected {
-        return Err(AssemblyError::ParamAmount { expected, got: params.len() });
+        return Err(AssemblyErrorVariant::ParamAmount { expected, got: params.len() });
     }
     Ok(())
 }
 
-fn process_nop(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_nop(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 0)?;
     Ok(Instruction::Nop)
 }
 
-fn process_add(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_add(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, a, b) = process_arithmetic_instruction(params)?;
     Ok(Instruction::Add { dest, a, b })
 }
 
-fn process_sub(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_sub(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, a, b) = process_arithmetic_instruction(params)?;
     Ok(Instruction::Subtract { dest, a , b})
 }
 
-fn process_mul(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_mul(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, a, b) = process_arithmetic_instruction(params)?;
     Ok(Instruction::Multiply { dest, a, b })
 }
 
-fn process_div(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_div(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, a, b) = process_arithmetic_instruction(params)?;
     Ok(Instruction::Divide { dest, a, b })
 }
 
-fn process_div_signed(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_div_signed(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, a, b) = process_arithmetic_instruction(params)?;
     Ok(Instruction::DivideSigned { dest, a, b })
 }
 
-fn process_arithmetic_instruction(params: &[Token]) -> Result<(Register, Either<Register, u16>, Either<Register, u16>), AssemblyError> {
+fn process_arithmetic_instruction(params: &[Token]) -> Result<(Register, Either<Register, u16>, Either<Register, u16>), AssemblyErrorVariant> {
     expect_param_amount(params, 3)?;
 
     match (&params[0].variant, &params[1].variant, &params[2].variant) {
         (Register(dest), Register(a), Register(b)) => Ok((*dest, Left(*a), Left(*b))),
         (Register(dest), Register(a), Unsigned(b)) => Ok((*dest, Left(*a), Right(*b))),
         (Register(dest), Unsigned(a), Register(b)) => Ok((*dest, Right(*a), Left(*b))),
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_and(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_and(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, a, b) = process_bitwise_instruction(params)?;
     Ok(Instruction::And { dest, a, b })
 }
 
-fn process_or(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_or(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, a, b) = process_bitwise_instruction(params)?;
     Ok(Instruction::Or { dest, a, b })
 }
 
-fn process_xor(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_xor(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, a, b) = process_bitwise_instruction(params)?;
     Ok(Instruction::Xor { dest, a, b })
 }
 
-fn process_nand(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_nand(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, a, b) = process_bitwise_instruction(params)?;
     Ok(Instruction::Nand { dest, a, b })
 }
 
-fn process_nor(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_nor(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, a, b) = process_bitwise_instruction(params)?;
     Ok(Instruction::Nor { dest, a, b })
 }
 
-fn process_xnor(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_xnor(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, a, b) = process_bitwise_instruction(params)?;
     Ok(Instruction::Xnor { dest, a, b })
 }
 
-fn process_bitwise_instruction(params: &[Token]) -> Result<(Register, Register, Register), AssemblyError> {
+fn process_bitwise_instruction(params: &[Token]) -> Result<(Register, Register, Register), AssemblyErrorVariant> {
     expect_param_amount(params, 3)?;
 
     match (&params[0].variant, &params[1].variant, &params[2].variant) {
         (Register(dest), Register(a), Register(b)) => Ok((*dest, *a, *b)),
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_not(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_not(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 2)?;
 
     match (&params[0].variant, &params[1].variant) {
@@ -202,47 +206,47 @@ fn process_not(params: &[Token]) -> Result<Instruction, AssemblyError> {
                 src: *src,
             }),
 
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_right_shift(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_right_shift(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, src, amount) = process_shift_and_roll(params)?;
     Ok(Instruction::RightShift { dest, src, amount })
 }
 
-fn process_left_shift(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_left_shift(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, src, amount) = process_shift_and_roll(params)?;
     Ok(Instruction::LeftShift { dest, src, amount })
 }
 
-fn process_right_roll(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_right_roll(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, src, amount) = process_shift_and_roll(params)?;
     Ok(Instruction::RightRoll { dest, src, amount })
 }
 
-fn process_left_roll(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_left_roll(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, src, amount) = process_shift_and_roll(params)?;
     Ok(Instruction::LeftRoll { dest, src, amount })
 }
 
-fn process_shift_and_roll(params: &[Token]) -> Result<(Register, Register, Either<Register, U6>), AssemblyError> {
+fn process_shift_and_roll(params: &[Token]) -> Result<(Register, Register, Either<Register, U6>), AssemblyErrorVariant> {
     expect_param_amount(params, 3)?;
 
     match (&params[0].variant, &params[1].variant, &params[2].variant) {
         (Register(dest), Register(src), Register(amount)) => Ok((*dest, *src, Left(*amount))),
         (Register(dest), Register(src), Unsigned(amount)) => {
             if *amount > U6::MAX as u16 {
-                return Err(AssemblyError::ImmediateTooLarge { max: U6::MAX as u16, got: *amount });
+                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: U6::MAX as u16, got: *amount });
             }
 
             Ok((*dest, *src, Right(U6::new(*amount as u8).unwrap())))
         }
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_move(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_move(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 2)?;
 
     match (&params[0].variant, &params[1].variant) {
@@ -252,17 +256,17 @@ fn process_move(params: &[Token]) -> Result<Instruction, AssemblyError> {
                 src: *src,
             }),
 
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_load_immediate(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_load_immediate(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 3)?;
 
     match (&params[0].variant, &params[1].variant, &params[2].variant) {
         (Register(dest), Unsigned(slice), Unsigned(imm)) => {
             if *slice > U6::MAX as u16 {
-                return Err(AssemblyError::ImmediateTooLarge { max: U6::MAX as u16, got: *slice });
+                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: U6::MAX as u16, got: *slice });
             }
 
             Ok(Instruction::LoadImmediate {
@@ -272,17 +276,17 @@ fn process_load_immediate(params: &[Token]) -> Result<Instruction, AssemblyError
             })
         }
 
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_load_register(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_load_register(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 3)?;
 
     match (&params[0].variant, &params[1].variant, &params[2].variant) {
         (Register(dest), Register(mem_ptr), Unsigned(slice)) => {
             if *slice > U3::MAX as u16 {
-                return Err(AssemblyError::ImmediateTooLarge { max: U3::MAX as u16, got: *slice });
+                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: U3::MAX as u16, got: *slice });
             }
 
             Ok(Instruction::LoadRegister {
@@ -294,7 +298,7 @@ fn process_load_register(params: &[Token]) -> Result<Instruction, AssemblyError>
 
         (Register(dest), Unsigned(mem_ptr), Unsigned(slice)) => {
             if *slice > U3::MAX as u16 {
-                return Err(AssemblyError::ImmediateTooLarge { max: U3::MAX as u16, got: *slice });
+                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: U3::MAX as u16, got: *slice });
             }
 
             Ok(Instruction::LoadRegister {
@@ -304,17 +308,17 @@ fn process_load_register(params: &[Token]) -> Result<Instruction, AssemblyError>
             })
         }
 
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_store_register(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_store_register(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 3)?;
 
     match (&params[0].variant, &params[1].variant, &params[2].variant) {
         (Register(src), Register(mem_ptr), Unsigned(slice)) => {
             if *slice > U3::MAX as u16 {
-                return Err(AssemblyError::ImmediateTooLarge { max: U3::MAX as u16, got: *slice });
+                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: U3::MAX as u16, got: *slice });
             }
 
             Ok(Instruction::StoreRegister {
@@ -326,7 +330,7 @@ fn process_store_register(params: &[Token]) -> Result<Instruction, AssemblyError
 
         (Register(src), Unsigned(mem_ptr), Unsigned(slice)) => {
             if *slice > U3::MAX as u16 {
-                return Err(AssemblyError::ImmediateTooLarge { max: U3::MAX as u16, got: *slice });
+                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: U3::MAX as u16, got: *slice });
             }
 
             Ok(Instruction::StoreRegister {
@@ -336,29 +340,29 @@ fn process_store_register(params: &[Token]) -> Result<Instruction, AssemblyError
             })
         }
 
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_push(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_push(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 1)?;
 
     match &params[0].variant {
         Register(reg) => Ok(Instruction::Push { reg: *reg }),
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_pop(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_pop(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 1)?;
 
     match &params[0].variant {
         Register(reg) => Ok(Instruction::Pop { reg: *reg }),
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_compare(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_compare(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 3)?;
 
     match (&params[0].variant, &params[1].variant, &params[2].variant) {
@@ -383,11 +387,11 @@ fn process_compare(params: &[Token]) -> Result<Instruction, AssemblyError> {
                 signed: *signed,
             }),
 
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_compare_float(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_compare_float(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 2)?;
 
     match (&params[0].variant, &params[1].variant) {
@@ -397,11 +401,11 @@ fn process_compare_float(params: &[Token]) -> Result<Instruction, AssemblyError>
                 b: *b,
             }),
 
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_compare_double(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_compare_double(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 2)?;
 
     match (&params[0].variant, &params[1].variant) {
@@ -411,23 +415,23 @@ fn process_compare_double(params: &[Token]) -> Result<Instruction, AssemblyError
                 b: *b,
             }),
 
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_branch(line_i: usize, token: &Token, labels: &HashMap<String, usize>) -> Result<Either<Register, i16>, AssemblyError> {
+fn process_branch(line_i: usize, token: &Token, labels: &HashMap<String, usize>) -> Result<Either<Register, i16>, AssemblyErrorVariant> {
     match &token.variant {
         Label(name) => {
             let label_i = match labels.get(name) {
-                None => return Err(AssemblyError::NoLabelFound { name: name.to_owned() }),
+                None => return Err(AssemblyErrorVariant::NoLabelFound { name: name.to_owned() }),
                 Some(idx) => *idx as i64,
             };
 
             let offset = label_i - line_i as i64 + 1;
 
             match offset {
-                o if o < i16::MIN as i64 => Err(AssemblyError::OffsetTooLarge { limit: i16::MIN as i32, required: o }),
-                o if o > i16::MAX as i64 => Err(AssemblyError::OffsetTooLarge { limit: i16::MAX as i32, required: o }),
+                o if o < i16::MIN as i64 => Err(AssemblyErrorVariant::OffsetTooLarge { limit: i16::MIN as i32, required: o }),
+                o if o > i16::MAX as i64 => Err(AssemblyErrorVariant::OffsetTooLarge { limit: i16::MAX as i32, required: o }),
                 _ => Ok(Right(offset as i16)),
             }
         }
@@ -435,58 +439,58 @@ fn process_branch(line_i: usize, token: &Token, labels: &HashMap<String, usize>)
         Unsigned(offset) => Ok(Right(*offset as i16)),
         Signed(offset) => Ok(Right(*offset)),
         Register(reg) => Ok(Left(*reg)),
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_unconditional_branch(line_i: usize, params: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyError> {
+fn process_unconditional_branch(line_i: usize, params: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 1)?;
     let offset = process_branch(line_i, &params[0], labels)?;
     Ok(Instruction::Branch { offset })
 }
 
-fn process_branch_greater(line_i: usize, params: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyError> {
+fn process_branch_greater(line_i: usize, params: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 1)?;
     let offset = process_branch(line_i, &params[0], labels)?;
     Ok(Instruction::BranchGreater { offset })
 }
 
-fn process_branch_equal(line_i: usize, params: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyError> {
+fn process_branch_equal(line_i: usize, params: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 1)?;
     let offset = process_branch(line_i, &params[0], labels)?;
     Ok(Instruction::BranchEqual { offset })
 }
 
-fn process_branch_smaller(line_i: usize, params: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyError> {
+fn process_branch_smaller(line_i: usize, params: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 1)?;
     let offset = process_branch(line_i, &params[0], labels)?;
     Ok(Instruction::BranchSmaller { offset })
 }
 
-fn process_branch_greater_equal(line_i: usize, params: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyError> {
+fn process_branch_greater_equal(line_i: usize, params: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 1)?;
     let offset = process_branch(line_i, &params[0], labels)?;
     Ok(Instruction::BranchGreaterEqual { offset })
 }
 
-fn process_branch_not_equal(line_i: usize, params: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyError> {
+fn process_branch_not_equal(line_i: usize, params: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 1)?;
     let offset = process_branch(line_i, &params[0], labels)?;
     Ok(Instruction::BranchNotEqual { offset })
 }
 
-fn process_branch_smaller_equal(line_i: usize, params: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyError> {
+fn process_branch_smaller_equal(line_i: usize, params: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 1)?;
     let offset = process_branch(line_i, &params[0], labels)?;
     Ok(Instruction::BranchSmallerEqual { offset })
 }
 
-fn process_immediate_to_float(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_immediate_to_float(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 2)?;
 
     match (&params[0].variant, &params[1].variant) {
         (Register(_), Unsigned(imm)) if *imm > i16::MAX as u16 => {
-            Err(AssemblyError::ImmediateTooLarge {
+            Err(AssemblyErrorVariant::ImmediateTooLarge {
                 max: i16::MAX as u16,
                 got: *imm,
             })
@@ -505,16 +509,16 @@ fn process_immediate_to_float(params: &[Token]) -> Result<Instruction, AssemblyE
                 imm: *imm,
             }),
         
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_immediate_to_double(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_immediate_to_double(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     expect_param_amount(params, 2)?;
 
     match (&params[0].variant, &params[1].variant) {
         (Register(_), Unsigned(imm)) if *imm > i16::MAX as u16 => {
-            Err(AssemblyError::ImmediateTooLarge {
+            Err(AssemblyErrorVariant::ImmediateTooLarge {
                 max: i16::MAX as u16,
                 got: *imm,
             })
@@ -533,45 +537,45 @@ fn process_immediate_to_double(params: &[Token]) -> Result<Instruction, Assembly
                 imm: *imm,
             }),
 
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_conversion(params: &[Token]) -> Result<(Register, Register), AssemblyError> {
+fn process_conversion(params: &[Token]) -> Result<(Register, Register), AssemblyErrorVariant> {
     expect_param_amount(params, 2)?;
 
     match (&params[0].variant, &params[1].variant) {
         (Register(dest), Register(src)) => Ok((*dest, *src)),
-        _ => Err(AssemblyError::ParamTypes),
+        _ => Err(AssemblyErrorVariant::ParamTypes),
     }
 }
 
-fn process_int_to_float(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_int_to_float(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, src) = process_conversion(params)?;
     Ok(Instruction::IntegerToFloat { dest, src })
 }
 
-fn process_int_to_double(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_int_to_double(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, src) = process_conversion(params)?;
     Ok(Instruction::IntegerToDouble { dest, src })
 }
 
-fn process_float_to_int(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_float_to_int(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, src) = process_conversion(params)?;
     Ok(Instruction::FloatToInteger { dest, src })
 }
 
-fn process_float_to_double(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_float_to_double(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, src) = process_conversion(params)?;
     Ok(Instruction::FloatToDouble { dest, src })
 }
 
-fn process_double_to_int(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_double_to_int(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, src) = process_conversion(params)?;
     Ok(Instruction::DoubleToInteger { dest, src })
 }
 
-fn process_double_to_float(params: &[Token]) -> Result<Instruction, AssemblyError> {
+fn process_double_to_float(params: &[Token]) -> Result<Instruction, AssemblyErrorVariant> {
     let (dest, src) = process_conversion(params)?;
     Ok(Instruction::DoubleToFloat { dest, src })
 }
