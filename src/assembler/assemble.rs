@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display};
+use std::collections::HashMap;
 use either::{Either, Left, Right};
 use crate::assembler::{
     constructor::{Instruction, U2, U3, U6},
@@ -10,20 +10,14 @@ use crate::assembler::{
 
 pub fn assemble(src: String) -> Result<Vec<u32>, String> {
     let mut instructions = Vec::new();
-    let mut labels = HashMap::new();
-
     let token_lines = tokenize(&src);
 
-    for tokens in token_lines.iter() {
-        let first_token = match tokens.first() {
-            None => panic!("Empty token line"),
-            Some(token) => token
-        };
+    let mut labels = extract_labels(&token_lines);
 
-        let line = first_token.line;
+    for tokens in &token_lines {
+        let line = tokens[0].line;
 
-        if let Label(name) = &first_token.variant {
-            labels.insert(name.to_owned(), line);
+        if let Label(_) = tokens[0].variant {
             continue;
         }
 
@@ -34,6 +28,18 @@ pub fn assemble(src: String) -> Result<Vec<u32>, String> {
     }
 
     Ok(instructions.iter().map(|instr| instr.assemble()).collect::<Vec<_>>())
+}
+
+fn extract_labels(token_lines: &Vec<Vec<Token>>) -> HashMap<String, usize> {
+    let mut labels = HashMap::new();
+
+    for tokens in token_lines {
+        if let Label(name) = &tokens[0].variant {
+            labels.insert(name.to_owned(), tokens[0].line);
+        }
+    }
+
+    labels
 }
 
 fn assemble_line(line_i: usize, line_tokens: &[Token], labels: &HashMap<String, usize>) -> Result<Instruction, AssemblyErrorVariant> {
@@ -103,8 +109,6 @@ fn tokenize(src: &String) -> Vec<Vec<Token>> {
             tokens.push(line_tokens);
         }
     }
-
-    // tokens.iter().for_each(|token| println!("{:?}", token));
 
     tokens
 }
