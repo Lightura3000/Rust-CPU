@@ -74,30 +74,6 @@ enum InstrType {
     DoubleArithmetic = 0x9,
 }
 
-pub enum BranchType {
-    Unconditional,
-    Greater,
-    Equal,
-    Smaller,
-    GreaterEqual,
-    NotEqual,
-    SmallerEqual,
-}
-
-impl BranchType {
-    fn construct(&self, offset: Either<Register, i16>) -> Instruction {
-        match (self, offset) {
-            (Self::Unconditional, offset) => Instruction::Branch { offset },
-            (Self::Greater, offset) => Instruction::BranchGreater { offset },
-            (Self::Equal, offset) => Instruction::BranchEqual { offset },
-            (Self::Smaller, offset) => Instruction::BranchSmaller { offset },
-            (Self::GreaterEqual, offset) => Instruction::BranchGreaterEqual { offset },
-            (Self::NotEqual, offset) => Instruction::BranchNotEqual { offset },
-            (Self::SmallerEqual, offset) => Instruction::BranchSmallerEqual { offset },
-        }
-    }
-}
-
 impl Into<u32> for InstrType {
     fn into(self) -> u32 {
         self as u32
