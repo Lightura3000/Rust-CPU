@@ -1,3 +1,4 @@
+use std::ops::Range;
 use crate::assembler::{
     opcode::Opcode,
     register::Register,
@@ -7,15 +8,7 @@ use crate::assembler::{
 pub struct Token {
     pub line: usize,
     pub variant: TokenVariant,
-}
-
-impl Token {
-    pub fn construct(line: usize, value: &str) -> Token {
-        Self {
-            line,
-            variant: value.into(),
-        }
-    }
+    pub range: Range<usize>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
