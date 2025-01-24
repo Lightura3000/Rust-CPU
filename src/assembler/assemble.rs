@@ -6,6 +6,7 @@ use crate::assembler::{
     register::Register,
     token::{Token, TokenVariant::*},
     assembly_error::{AssemblyError, AssemblyErrorVariant},
+    tokenize::tokenize,
 };
 
 pub fn assemble(src: String) -> Result<Vec<u32>, String> {
@@ -93,35 +94,6 @@ fn assemble_line(line_i: usize, line_tokens: &[Token], labels: &HashMap<String, 
         Opcode::DoubleToInteger => process_double_to_int(params),
         Opcode::DoubleToFloat => process_double_to_float(params),
     }
-}
-
-fn split_with_char_indices(input: &str) -> impl Iterator<Item = (usize, &str)> {
-    input.split_whitespace().map(|word| {
-        let index = input.find(word).unwrap();
-        (index, word)
-    })
-}
-
-fn tokenize(src: &String) -> Vec<Vec<Token>> {
-    let mut tokens = Vec::new();
-
-    for (line, content) in src.lines().enumerate() {
-        let mut line_tokens = Vec::new();
-
-        for (index, split) in split_with_char_indices(content) {
-            line_tokens.push(Token {
-                line,
-                variant: split.into(),
-                range: index..(index + split.len()),
-            });
-        }
-
-        if line_tokens.len() > 0 {
-            tokens.push(line_tokens);
-        }
-    }
-
-    tokens
 }
 
 fn expect_param_amount(params: &[Token], expected: usize) -> Result<(), AssemblyErrorVariant> {
