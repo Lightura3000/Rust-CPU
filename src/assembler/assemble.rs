@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use either::{Either, Left, Right};
-use crate::assembler::{
-    constructor::{Instruction, U2, U3, U6},
+use super::{
+    constructor::Instruction,
+    unsigned_newtypes::{U2, U3, U6},
     opcode::Opcode,
     register::Register,
     token::{Token, TokenVariant::*},
