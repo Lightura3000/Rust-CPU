@@ -151,34 +151,6 @@ fn assemble_floating(    instr_type: InstrType,  // either FloatingArithmetic or
     ])
 }
 
-
-fn construct_floating_instruction(dest: Register, a: Register, b: Option<Register>, byte7: u32, byte8: u32) -> u32 {
-    pack_nibbles([
-        InstrType::FloatingArithmetic.into(),
-        dest.into(),
-        a.into(),
-        b.map_or(0, Register::into),
-        0,
-        0,
-        byte7,
-        byte8
-    ])
-}
-
-fn construct_double_instruction(dest: Register, a: Register, b: Option<Register>, byte7: u32, byte8: u32) -> u32 {
-    pack_nibbles([
-        InstrType::DoubleArithmetic.into(),
-        dest.into(),
-        a.into(),
-        b.map_or(0, Register::into),
-        0,
-        0,
-        byte7,
-        byte8
-    ])
-}
-
-
 #[derive(Debug, Copy, Clone)]
 #[allow(dead_code)]
 pub enum Instruction {
