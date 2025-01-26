@@ -595,6 +595,7 @@ impl CPU {
         }
     }
 
+    #[inline(always)] // for performance
     fn fetch_instruction(&mut self, address: usize) -> u32 {
         if self.memory.len() <= address + 3 {
             panic!("Instruction pointer out of bounds: reading bytes [{}; {}] but memory length is {}", address, address + 3, self.memory.len());
