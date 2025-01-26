@@ -18,7 +18,7 @@ fn main() {
     };
 
     println!("Assembled into {} instructions:", instructions.len());
-    instructions.iter().for_each(|instruction| println!("{:#010x}", instruction));
+    instructions.iter().enumerate().for_each(|(i, instruction)| println!("{}. {:#010x}", i + 1,  instruction));
 
     let mut cpu = CPU::default();
 
