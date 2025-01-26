@@ -32,7 +32,6 @@ impl From<Register> for u32 {
 
 // ---------------------------------------------------------------------------------------------
 
-/// Helper for arithmetic instructions that can be register-register or register-immediate.
 fn assemble_arithmetic(
     instr_type: InstrType,
     dest: Register,
@@ -76,7 +75,22 @@ fn assemble_arithmetic(
     }
 }
 
-/// Helper for shift/rotate instructions that can be register or immediate (U6).
+fn assemble_bitwise(
+    subcode: u32,
+    dest: Register,
+    a: Register,
+    b: Register
+) -> u32 {
+    pack_nibbles([
+        InstrType::Bitwise.into(),
+        dest.into(),
+        a.into(),
+        b.into(),
+        0, 0, 0,
+        subcode
+    ])
+}
+
 fn assemble_shift_or_rotate(
     instr_type: InstrType,
     dest: Register,
@@ -107,7 +121,6 @@ fn assemble_shift_or_rotate(
     }
 }
 
-// Similar small helpers for branching, bitwise, floating, etc.:
 fn assemble_branch(
     instr_type: InstrType,
     offset: Either<Register, i16>,
@@ -133,7 +146,8 @@ fn assemble_branch(
     }
 }
 
-fn assemble_floating(    instr_type: InstrType,  // either FloatingArithmetic or DoubleArithmetic
+fn assemble_floating(
+    instr_type: InstrType,  // either FloatingArithmetic or DoubleArithmetic
     dest: Register,
     a: Register,
     b: Option<Register>,
@@ -150,6 +164,8 @@ fn assemble_floating(    instr_type: InstrType,  // either FloatingArithmetic or
         subcode_minor
     ])
 }
+
+// ---------------------------------------------------------------------------------------------
 
 #[derive(Debug, Copy, Clone)]
 #[allow(dead_code)]
@@ -261,7 +277,6 @@ pub enum Instruction {
     DoubleLoadNaN { dest: Register },
 }
 
-
 impl Instruction {
     pub fn assemble(self) -> u32 {
         use Instruction::*;
@@ -270,26 +285,26 @@ impl Instruction {
             Nop => 0,
 
             // ----------------- Arithmetic -----------------
-            Add { dest, a, b } => assemble_arithmetic(InstrType::Arithmetic, dest, a, b, 0x0, 0x1,0x2),
-            Subtract { dest, a, b } => assemble_arithmetic(InstrType::Arithmetic, dest, a, b, 0x3, 0x4, 0x5),
-            Multiply { dest, a, b } => assemble_arithmetic(InstrType::Arithmetic, dest, a, b, 0x6, 0x7, 0x8),
-            Divide { dest, a, b } => assemble_arithmetic(InstrType::Arithmetic, dest, a, b, 0x9, 0xA, 0xB),
+            Add          { dest, a, b } => assemble_arithmetic(InstrType::Arithmetic, dest, a, b, 0x0, 0x1,0x2),
+            Subtract     { dest, a, b } => assemble_arithmetic(InstrType::Arithmetic, dest, a, b, 0x3, 0x4, 0x5),
+            Multiply     { dest, a, b } => assemble_arithmetic(InstrType::Arithmetic, dest, a, b, 0x6, 0x7, 0x8),
+            Divide       { dest, a, b } => assemble_arithmetic(InstrType::Arithmetic, dest, a, b, 0x9, 0xA, 0xB),
             DivideSigned { dest, a, b } => assemble_arithmetic(InstrType::Arithmetic, dest, a, b, 0xC, 0xD, 0xE),
 
             // ----------------- Bitwise -----------------
-            And { dest, a, b } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x0]),
-            Or { dest, a, b } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x1]),
-            Xor { dest, a, b } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x2]),
-            Nand { dest, a, b } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x3]),
-            Nor { dest, a, b } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x4]),
-            Xnor { dest, a, b } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x5]),
-            Not { dest, src } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x6]),
+            And  { dest, a, b } => assemble_bitwise(0x0, dest, a, b),
+            Or   { dest, a, b } => assemble_bitwise(0x1, dest, a, b),
+            Xor  { dest, a, b } => assemble_bitwise(0x2, dest, a, b),
+            Nand { dest, a, b } => assemble_bitwise(0x3, dest, a, b),
+            Nor  { dest, a, b } => assemble_bitwise(0x4, dest, a, b),
+            Xnor { dest, a, b } => assemble_bitwise(0x5, dest, a, b),
+            Not  { dest, src } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x6]),
             
             // ----------------- Shifts & Rotates -----------------
-            RightShift { dest, src, amount } => assemble_shift_or_rotate(InstrType::ShiftRotate, dest, src, amount, 0x0, 0x1,),
-            LeftShift { dest, src, amount } => assemble_shift_or_rotate(InstrType::ShiftRotate, dest, src, amount, 0x2, 0x3),
-            RightRoll { dest, src, amount } => assemble_shift_or_rotate(InstrType::ShiftRotate, dest, src, amount, 0x4, 0x5),
-            LeftRoll { dest, src, amount } => assemble_shift_or_rotate(InstrType::ShiftRotate, dest, src, amount, 0x6, 0x7),
+            RightShift { dest, src, amount } => assemble_shift_or_rotate(InstrType::ShiftRotate, dest, src, amount, 0x0, 0x1),
+            LeftShift  { dest, src, amount } => assemble_shift_or_rotate(InstrType::ShiftRotate, dest, src, amount, 0x2, 0x3),
+            RightRoll  { dest, src, amount } => assemble_shift_or_rotate(InstrType::ShiftRotate, dest, src, amount, 0x4, 0x5),
+            LeftRoll   { dest, src, amount } => assemble_shift_or_rotate(InstrType::ShiftRotate, dest, src, amount, 0x6, 0x7),
 
             // ----------------- Data Movement / Stack -----------------
             Move { dest, src } => pack_nibbles([InstrType::DataMemoryStack.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x0]),
@@ -343,39 +358,29 @@ impl Instruction {
             CompareDouble { a, b } => pack_nibbles([InstrType::Comparison.into(), a.into(), b.into(), 0, 0, 0, 0, 0x7]),
 
             // ----------------- Branching -----------------
-            Branch { offset } => assemble_branch(InstrType::Branching, offset, 0x0, 0x1),
-            BranchGreater { offset } => assemble_branch(InstrType::Branching, offset, 0x2, 0x3),
-            BranchEqual { offset } => assemble_branch(InstrType::Branching, offset, 0x4, 0x5),
-            BranchSmaller { offset } => assemble_branch(InstrType::Branching, offset, 0x6, 0x7),
+            Branch             { offset } => assemble_branch(InstrType::Branching, offset, 0x0, 0x1),
+            BranchGreater      { offset } => assemble_branch(InstrType::Branching, offset, 0x2, 0x3),
+            BranchEqual        { offset } => assemble_branch(InstrType::Branching, offset, 0x4, 0x5),
+            BranchSmaller      { offset } => assemble_branch(InstrType::Branching, offset, 0x6, 0x7),
             BranchGreaterEqual { offset } => assemble_branch(InstrType::Branching, offset, 0x8, 0x9),
-            BranchNotEqual { offset } => assemble_branch(InstrType::Branching, offset, 0xA, 0xB),
+            BranchNotEqual     { offset } => assemble_branch(InstrType::Branching, offset, 0xA, 0xB),
             BranchSmallerEqual { offset } => assemble_branch(InstrType::Branching, offset, 0xC, 0xD),
 
             // ----------------- Conversions -----------------
             ImmediateToFloat { dest, imm } => {
                 let (n0, n1, n2, n3) = split_u16_into_nibbles(imm as u16);
-                pack_nibbles([
-                    InstrType::Conversion.into(),
-                    dest.into(),
-                    n0, n1, n2, n3,
-                    0, 0x0
-                ])
+                pack_nibbles([InstrType::Conversion.into(), dest.into(), n0, n1, n2, n3, 0, 0x0])
             }
             ImmediateToDouble { dest, imm } => {
                 let (n0, n1, n2, n3) = split_u16_into_nibbles(imm as u16);
-                pack_nibbles([
-                    InstrType::Conversion.into(),
-                    dest.into(),
-                    n0, n1, n2, n3,
-                    0, 0x1
-                ])
+                pack_nibbles([InstrType::Conversion.into(), dest.into(), n0, n1, n2, n3, 0, 0x1])
             }
-            IntegerToFloat { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x2]),
+            IntegerToFloat  { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x2]),
             IntegerToDouble { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x3]),
-            FloatToInteger { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x4]),
-            FloatToDouble { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x5]),
+            FloatToInteger  { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x4]),
+            FloatToDouble   { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x5]),
             DoubleToInteger { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x6]),
-            DoubleToFloat { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x7]),
+            DoubleToFloat   { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x7]),
 
             // ----------------- Floating arithmetic -----------------
             FloatAdd { dest, a, b } => assemble_floating(InstrType::FloatingArithmetic, dest, a, Some(b), 0x0, 0x0),
