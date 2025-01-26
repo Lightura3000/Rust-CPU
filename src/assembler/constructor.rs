@@ -252,45 +252,44 @@ impl Instruction {
         )
     }
 
+    fn construct_arithmetic_instruction(
+        instr_type: InstrType,
+        dest: Register,
+        a: Either<Register, u16>,
+        b: Either<Register, u16>,
+        subcode: u32
+    ) -> u32 {
+        match (a, b) {
+            (Left(r1), Left(r2)) => Self::denibble([
+                instr_type.into(),
+                dest.into(),
+                r1.into(),
+                r2.into(),
+                0, 0, 0,
+                subcode
+            ]),
+            (Left(r), Right(imm)) | (Right(imm), Left(r)) => {
+                let (n0, n1, n2, n3) = Self::nibbles_u16(imm);
+                Self::denibble([
+                    instr_type.into(),
+                    dest.into(),
+                    r.into(),
+                    n0, n1, n2, n3,
+                    subcode + 1
+                ])
+            }
+            _ => panic!("Invalid instruction combination")
+        }
+    }
+
     pub fn assemble(self) -> u32 {
         match self {
             Instruction::Nop => 0,
 
             // Arithmetic
-            Instruction::Add { dest, a, b } => {
-                match (a, b) {
-                    (Left(r1), Left(r2)) => Self::denibble([InstrType::Arithmetic.into(), dest.into(), r1.into(), r2.into(), 0, 0, 0, 0x0]),
-                    (Left(r), Right(imm)) | (Right(imm), Left(r)) => {
-                        let (n0, n1, n2, n3) = Self::nibbles_u16(imm);
-                        Self::denibble([InstrType::Arithmetic.into(), dest.into(), r.into(), n0, n1, n2, n3, 0x1])
-                    }
-                    _ => panic!("bad code"),
-                }
-            }
-            Instruction::Subtract { dest, a, b } => {
-                match (a, b) {
-                    (Left(r1), Left(r2)) => Self::denibble([InstrType::Arithmetic.into(), dest.into(), r1.into(), r2.into(), 0, 0, 0, 0x2]),
-                    (Left(r), Right(imm)) => {
-                        let (n0, n1, n2, n3) = Self::nibbles_u16(imm);
-                        Self::denibble([InstrType::Arithmetic.into(), dest.into(), r.into(), n0, n1, n2, n3, 0x3])
-                    }
-                    (Right(imm), Left(r)) => {
-                        let (n0, n1, n2, n3) = Self::nibbles_u16(imm);
-                        Self::denibble([InstrType::Arithmetic.into(), dest.into(), r.into(), n0, n1, n2, n3, 0x4])
-                    }
-                    _ => panic!("bad code"),
-                }
-            }
-            Instruction::Multiply { dest, a, b } => {
-                match (a, b) {
-                    (Left(r1), Left(r2)) => Self::denibble([InstrType::Arithmetic.into(), dest.into(), r1.into(), r2.into(), 0, 0, 0, 0x5]),
-                    (Left(r), Right(imm)) | (Right(imm), Left(r)) => {
-                        let (n0, n1, n2, n3) = Self::nibbles_u16(imm);
-                        Self::denibble([InstrType::Arithmetic.into(), dest.into(), r.into(), n0, n1, n2, n3, 0x6])
-                    }
-                    _ => panic!("bad code"),
-                }
-            }
+            Instruction::Add { dest, a, b } => Self::construct_arithmetic_instruction(InstrType::Arithmetic, dest, a, b, 0x0),
+            Instruction::Subtract { dest, a, b } => Self::construct_arithmetic_instruction(InstrType::Arithmetic, dest, a, b, 0x2),
+            Instruction::Multiply { dest, a, b } => Self::construct_arithmetic_instruction(InstrType::Arithmetic, dest, a, b, 0x4),
             Instruction::Divide { dest, a, b } => {
                 match (a, b) {
                     (Left(r1), Left(r2)) => Self::denibble([InstrType::Arithmetic.into(), dest.into(), r1.into(), r2.into(), 0, 0, 0, 0x7]),
