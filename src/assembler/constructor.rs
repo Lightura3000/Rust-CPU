@@ -1,7 +1,9 @@
 use either::{Either, Left, Right};
 use super::register::Register;
 use super::unsigned_newtypes::{U2, U3, U6};
-use super::nibbles::{pack_nibbles, split_u16_into_nibbles, split_u6_into_nibbles, denibble, nibbles_u16, nibbles_u6};
+use super::nibbles::{pack_nibbles, split_u16_into_nibbles, split_u6_into_nibbles};
+
+// ---------------------------------------------------------------------------------------------
 
 #[repr(u32)]
 enum InstrType {
@@ -30,48 +32,155 @@ impl From<Register> for u32 {
 
 // ---------------------------------------------------------------------------------------------
 
-    nibbles
-        .iter()
-        .enumerate()
-        .map(|(i, n)| (n << MASKS[i].trailing_zeros()) & MASKS[i])
-        .for_each(|n| out |= n);
-
-    out
+/// Helper for arithmetic instructions that can be register-register or register-immediate.
+fn assemble_arithmetic(
+    instr_type: InstrType,
+    dest: Register,
+    a: Either<Register, u16>,
+    b: Either<Register, u16>,
+    subcode_rr: u32, // subcode if (reg, reg)
+    subcode_ri: u32, // subcode if (reg, imm)
+    subcode_ir: u32, // subcode if (imm, reg)
+) -> u32 {
+    match (a, b) {
+        (Left(r1), Left(r2)) => pack_nibbles([
+            instr_type.into(),  // nibble 0
+            dest.into(),        // nibble 1
+            r1.into(),          // nibble 2
+            r2.into(),          // nibble 3
+            0, 0, 0,
+            subcode_rr
+        ]),
+        (Left(r), Right(imm)) => {
+            let (n0, n1, n2, n3) = split_u16_into_nibbles(imm);
+            pack_nibbles([
+                instr_type.into(),
+                dest.into(),
+                r.into(),
+                n0, n1, n2, n3,
+                subcode_ri
+            ])
+        }
+        (Right(imm), Left(r)) => {
+            let (n0, n1, n2, n3) = split_u16_into_nibbles(imm);
+            pack_nibbles([
+                instr_type.into(),
+                dest.into(),
+                r.into(),
+                n0, n1, n2, n3,
+                subcode_ir
+            ])
+        }
+        // For these instructions, (imm, imm) is disallowed
+        (Right(_), Right(_)) => panic!("Invalid combination: immediate, immediate."),
+    }
 }
 
-fn nibbles_u16(v: u16) -> (u32, u32, u32, u32) {
-    const MASKS: [u32; 4] = [
-        0xF000,
-        0x0F00,
-        0x00F0,
-        0x000F,
-    ];
-
-    let v = v as u32;
-
-    (
-        (v & MASKS[0]) >> MASKS[0].trailing_zeros(),
-        (v & MASKS[1]) >> MASKS[1].trailing_zeros(),
-        (v & MASKS[2]) >> MASKS[2].trailing_zeros(),
-        (v & MASKS[3]) >> MASKS[3].trailing_zeros(),
-    )
+/// Helper for shift/rotate instructions that can be register or immediate (U6).
+fn assemble_shift_or_rotate(
+    instr_type: InstrType,
+    dest: Register,
+    src: Register,
+    amount: Either<Register, U6>,
+    subcode_reg: u32,
+    subcode_imm: u32
+) -> u32 {
+    match amount {
+        Left(reg) => pack_nibbles([
+            instr_type.into(),
+            dest.into(),
+            src.into(),
+            reg.into(),
+            0, 0, 0,
+            subcode_reg
+        ]),
+        Right(u6) => {
+            let (n0, n1) = split_u6_into_nibbles(u6);
+            pack_nibbles([
+                instr_type.into(),
+                dest.into(),
+                src.into(),
+                0, 0, n0, n1,
+                subcode_imm
+            ])
+        }
+    }
 }
 
-fn nibbles_u6(v: U6) -> (u32, u32) {
-    const MASKS: [u32; 2] = [
-        0xF0,
-        0x0F,
-    ];
-
-    let v = v.get() as u32;
-
-    (
-        (v & MASKS[0]) >> MASKS[0].trailing_zeros(),
-        (v & MASKS[1]) >> MASKS[1].trailing_zeros(),
-    )
+// Similar small helpers for branching, bitwise, floating, etc.:
+fn assemble_branch(
+    instr_type: InstrType,
+    offset: Either<Register, i16>,
+    subcode_reg: u32,
+    subcode_imm: u32
+) -> u32 {
+    match offset {
+        Left(reg) => pack_nibbles([
+            instr_type.into(),
+            reg.into(),
+            0, 0, 0, 0, 0,
+            subcode_reg
+        ]),
+        Right(imm) => {
+            let (n0, n1, n2, n3) = split_u16_into_nibbles(imm as u16);
+            pack_nibbles([
+                instr_type.into(),
+                n0, n1, n2, n3,
+                0, 0,
+                subcode_imm
+            ])
+        }
+    }
 }
+
+fn assemble_floating(    instr_type: InstrType,  // either FloatingArithmetic or DoubleArithmetic
+    dest: Register,
+    a: Register,
+    b: Option<Register>,
+    subcode_major: u32,
+    subcode_minor: u32
+) -> u32 {
+    pack_nibbles([
+        instr_type.into(),
+        dest.into(),
+        a.into(),
+        b.map_or(0, |r| r.into()),
+        0, 0,
+        subcode_major,
+        subcode_minor
+    ])
+}
+
+
+fn construct_floating_instruction(dest: Register, a: Register, b: Option<Register>, byte7: u32, byte8: u32) -> u32 {
+    pack_nibbles([
+        InstrType::FloatingArithmetic.into(),
+        dest.into(),
+        a.into(),
+        b.map_or(0, Register::into),
+        0,
+        0,
+        byte7,
+        byte8
+    ])
+}
+
+fn construct_double_instruction(dest: Register, a: Register, b: Option<Register>, byte7: u32, byte8: u32) -> u32 {
+    pack_nibbles([
+        InstrType::DoubleArithmetic.into(),
+        dest.into(),
+        a.into(),
+        b.map_or(0, Register::into),
+        0,
+        0,
+        byte7,
+        byte8
+    ])
+}
+
 
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 pub enum Instruction {
     Nop,
     Add { dest: Register, a: Either<Register, u16>, b: Either<Register, u16> },
@@ -182,349 +291,187 @@ pub enum Instruction {
 
 
 impl Instruction {
-    fn construct_arithmetic_instruction(
-        instr_type: InstrType,
-        dest: Register,
-        a: Either<Register, u16>,
-        b: Either<Register, u16>,
-        subcode: u32
-    ) -> u32 {
-        match (a, b) {
-            (Left(r1), Left(r2)) => denibble([
-                instr_type.into(),
-                dest.into(),
-                r1.into(),
-                r2.into(),
-                0, 0, 0,
-                subcode
-            ]),
-            (Left(r), Right(imm)) | (Right(imm), Left(r)) => {
-                let (n0, n1, n2, n3) = nibbles_u16(imm);
-                denibble([
-                    instr_type.into(),
+    pub fn assemble(self) -> u32 {
+        use Instruction::*;
+
+        match self {
+            Nop => 0,
+
+            // ----------------- Arithmetic -----------------
+            Add { dest, a, b } => assemble_arithmetic(InstrType::Arithmetic, dest, a, b, 0x0, 0x1,0x2),
+            Subtract { dest, a, b } => assemble_arithmetic(InstrType::Arithmetic, dest, a, b, 0x3, 0x4, 0x5),
+            Multiply { dest, a, b } => assemble_arithmetic(InstrType::Arithmetic, dest, a, b, 0x6, 0x7, 0x8),
+            Divide { dest, a, b } => assemble_arithmetic(InstrType::Arithmetic, dest, a, b, 0x9, 0xA, 0xB),
+            DivideSigned { dest, a, b } => assemble_arithmetic(InstrType::Arithmetic, dest, a, b, 0xC, 0xD, 0xE),
+
+            // ----------------- Bitwise -----------------
+            And { dest, a, b } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x0]),
+            Or { dest, a, b } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x1]),
+            Xor { dest, a, b } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x2]),
+            Nand { dest, a, b } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x3]),
+            Nor { dest, a, b } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x4]),
+            Xnor { dest, a, b } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x5]),
+            Not { dest, src } => pack_nibbles([InstrType::Bitwise.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x6]),
+            
+            // ----------------- Shifts & Rotates -----------------
+            RightShift { dest, src, amount } => assemble_shift_or_rotate(InstrType::ShiftRotate, dest, src, amount, 0x0, 0x1,),
+            LeftShift { dest, src, amount } => assemble_shift_or_rotate(InstrType::ShiftRotate, dest, src, amount, 0x2, 0x3),
+            RightRoll { dest, src, amount } => assemble_shift_or_rotate(InstrType::ShiftRotate, dest, src, amount, 0x4, 0x5),
+            LeftRoll { dest, src, amount } => assemble_shift_or_rotate(InstrType::ShiftRotate, dest, src, amount, 0x6, 0x7),
+
+            // ----------------- Data Movement / Stack -----------------
+            Move { dest, src } => pack_nibbles([InstrType::DataMemoryStack.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x0]),
+            LoadImmediate { dest, slice, imm } => {
+                let (n0, n1, n2, n3) = split_u16_into_nibbles(imm);
+                pack_nibbles([InstrType::DataMemoryStack.into(), dest.into(), n0, n1, n2, n3, slice.get() as u32, 0x1])
+            }
+            LoadRegister { dest, mem_ptr, slice } => match mem_ptr {
+                Left(reg) => pack_nibbles([InstrType::DataMemoryStack.into(), dest.into(), reg.into(), 0, 0, 0, slice.get() as u32, 0x2]),
+                Right(imm) => {
+                    let (n0, n1, n2, n3) = split_u16_into_nibbles(imm);
+                    pack_nibbles([InstrType::DataMemoryStack.into(), dest.into(), n0, n1, n2, n3, slice.get() as u32, 0x3])
+                }
+            },
+            StoreRegister { src, mem_ptr, slice } => match mem_ptr {
+                Left(reg) => pack_nibbles([InstrType::DataMemoryStack.into(), src.into(), reg.into(), 0, 0, 0, slice.get() as u32, 0x4]),
+                Right(imm) => {
+                    let (n0, n1, n2, n3) = split_u16_into_nibbles(imm);
+                    pack_nibbles([InstrType::DataMemoryStack.into(), src.into(), n0, n1, n2, n3, slice.get() as u32, 0x5])
+                }
+            },
+            Push { reg } => pack_nibbles([InstrType::DataMemoryStack.into(), reg.into(), 0, 0, 0, 0, 0, 0x6]),
+            Pop { reg } => pack_nibbles([InstrType::DataMemoryStack.into(), reg.into(), 0, 0, 0, 0, 0, 0x7]),
+
+            // ----------------- Comparison -----------------
+            Compare { a, b, signed } => {
+                use either::Either::{Left, Right};
+                match (signed, a, b) {
+                    (false, Left(r1), Left(r2)) => pack_nibbles([InstrType::Comparison.into(), r1.into(), r2.into(), 0, 0, 0, 0, 0x0]),
+                    (false, Left(r), Right(imm)) => {
+                        let (n0, n1, n2, n3) = split_u16_into_nibbles(imm);
+                        pack_nibbles([InstrType::Comparison.into(), r.into(), n0, n1, n2, n3, 0, 0x1])
+                    }
+                    (false, Right(imm), Left(r)) => {
+                        let (n0, n1, n2, n3) = split_u16_into_nibbles(imm);
+                        pack_nibbles([InstrType::Comparison.into(), r.into(), n0, n1, n2, n3, 0, 0x2])
+                    }
+                    (true, Left(r1), Left(r2)) => pack_nibbles([InstrType::Comparison.into(), r1.into(), r2.into(), 0, 0, 0, 0, 0x3]),
+                    (true, Left(r), Right(imm)) => {
+                        let (n0, n1, n2, n3) = split_u16_into_nibbles(imm);
+                        pack_nibbles([InstrType::Comparison.into(), r.into(), n0, n1, n2, n3, 0, 0x4])
+                    }
+                    (true, Right(imm), Left(r)) => {
+                        let (n0, n1, n2, n3) = split_u16_into_nibbles(imm);
+                        pack_nibbles([InstrType::Comparison.into(), r.into(), n0, n1, n2, n3, 0, 0x5])
+                    }
+                    (_, Right(_), Right(_)) => panic!("Invalid combination"),
+                }
+            }
+            CompareFloat { a, b } => pack_nibbles([InstrType::Comparison.into(), a.into(), b.into(), 0, 0, 0, 0, 0x6]),
+            CompareDouble { a, b } => pack_nibbles([InstrType::Comparison.into(), a.into(), b.into(), 0, 0, 0, 0, 0x7]),
+
+            // ----------------- Branching -----------------
+            Branch { offset } => assemble_branch(InstrType::Branching, offset, 0x0, 0x1),
+            BranchGreater { offset } => assemble_branch(InstrType::Branching, offset, 0x2, 0x3),
+            BranchEqual { offset } => assemble_branch(InstrType::Branching, offset, 0x4, 0x5),
+            BranchSmaller { offset } => assemble_branch(InstrType::Branching, offset, 0x6, 0x7),
+            BranchGreaterEqual { offset } => assemble_branch(InstrType::Branching, offset, 0x8, 0x9),
+            BranchNotEqual { offset } => assemble_branch(InstrType::Branching, offset, 0xA, 0xB),
+            BranchSmallerEqual { offset } => assemble_branch(InstrType::Branching, offset, 0xC, 0xD),
+
+            // ----------------- Conversions -----------------
+            ImmediateToFloat { dest, imm } => {
+                let (n0, n1, n2, n3) = split_u16_into_nibbles(imm as u16);
+                pack_nibbles([
+                    InstrType::Conversion.into(),
                     dest.into(),
-                    r.into(),
                     n0, n1, n2, n3,
-                    subcode + 1
+                    0, 0x0
                 ])
             }
-            _ => panic!("Invalid instruction combination")
+            ImmediateToDouble { dest, imm } => {
+                let (n0, n1, n2, n3) = split_u16_into_nibbles(imm as u16);
+                pack_nibbles([
+                    InstrType::Conversion.into(),
+                    dest.into(),
+                    n0, n1, n2, n3,
+                    0, 0x1
+                ])
+            }
+            IntegerToFloat { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x2]),
+            IntegerToDouble { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x3]),
+            FloatToInteger { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x4]),
+            FloatToDouble { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x5]),
+            DoubleToInteger { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x6]),
+            DoubleToFloat { dest, src } => pack_nibbles([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x7]),
+
+            // ----------------- Floating arithmetic -----------------
+            FloatAdd { dest, a, b } => assemble_floating(InstrType::FloatingArithmetic, dest, a, Some(b), 0x0, 0x0),
+            FloatSubtract { dest, a, b } => assemble_floating(InstrType::FloatingArithmetic, dest, a, Some(b), 0x0, 0x1),
+            FloatMultiply { dest, a, b } => assemble_floating(InstrType::FloatingArithmetic, dest, a, Some(b), 0x0, 0x2),
+            FloatDivide { dest, a, b } => assemble_floating(InstrType::FloatingArithmetic, dest, a, Some(b), 0x0, 0x3),
+            FloatModulo { dest, a, b } => assemble_floating(InstrType::FloatingArithmetic, dest, a, Some(b), 0x0, 0x4),
+            FloatNegate { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x0, 0x5),
+            FloatReciprocal { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x0, 0x6),
+            FloatPower { dest, a, b } => assemble_floating(InstrType::FloatingArithmetic, dest, a, Some(b), 0x0, 0x7),
+            FloatExponential { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x0, 0x8),
+            FloatRoot { dest, a, b } => assemble_floating(InstrType::FloatingArithmetic, dest, a, Some(b), 0x0, 0x9),
+            FloatSquareRoot { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x0, 0xA),
+            FloatCubeRoot { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x0, 0xB),
+            FloatSquare { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x0, 0xC),
+            FloatCube { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x0, 0xD),
+            FloatLogarithm { dest, a, b } => assemble_floating(InstrType::FloatingArithmetic, dest, a, Some(b), 0x0, 0xE),
+            FloatNaturalLogarithm { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x0, 0xF),
+            FloatAbsolute { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x1, 0x0),
+            FloatSine { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x1, 0x1),
+            FloatCosine { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x1, 0x2),
+            FloatTangent { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x1, 0x3),
+            FloatArcsine { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x1, 0x4),
+            FloatArccosine { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x1, 0x5),
+            FloatArctangent { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x1, 0x6),
+            FloatFloor { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x1, 0x7),
+            FloatCeil { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x1, 0x8),
+            FloatRound { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x1, 0x9),
+            FloatMinimum { dest, a, b } => assemble_floating(InstrType::FloatingArithmetic, dest, a, Some(b), 0x1, 0xA),
+            FloatMaximum { dest, a, b } => assemble_floating(InstrType::FloatingArithmetic, dest, a, Some(b), 0x1, 0xB),
+            FloatSign { dest, src } => assemble_floating(InstrType::FloatingArithmetic, dest, src, None, 0x1, 0xC),
+            FloatAbsoluteDifference { dest, a, b } => assemble_floating(InstrType::FloatingArithmetic, dest, a, Some(b), 0x1, 0xD),
+            FloatLoadInfinity { dest } => pack_nibbles([InstrType::FloatingArithmetic.into(), dest.into(), 0, 0, 0, 0, 0x1, 0xE]),
+            FloatLoadNaN { dest } => pack_nibbles([InstrType::FloatingArithmetic.into(), dest.into(), 0, 0, 0, 0, 0x1, 0xF]),
+
+            // ----------------- Double arithmetic -----------------
+            DoubleAdd { dest, a, b } => assemble_floating(InstrType::DoubleArithmetic, dest, a, Some(b), 0x0, 0x0),
+            DoubleSubtract { dest, a, b } => assemble_floating(InstrType::DoubleArithmetic, dest, a, Some(b), 0x0, 0x1),
+            DoubleMultiply { dest, a, b } => assemble_floating(InstrType::DoubleArithmetic, dest, a, Some(b), 0x0, 0x2),
+            DoubleDivide { dest, a, b } => assemble_floating(InstrType::DoubleArithmetic, dest, a, Some(b), 0x0, 0x3),
+            DoubleModulo { dest, a, b } => assemble_floating(InstrType::DoubleArithmetic, dest, a, Some(b), 0x0, 0x4),
+            DoubleNegate { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x0, 0x5),
+            DoubleReciprocal { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x0, 0x6),
+            DoublePower { dest, a, b } => assemble_floating(InstrType::DoubleArithmetic, dest, a, Some(b), 0x0, 0x7),
+            DoubleExponential { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x0, 0x8),
+            DoubleRoot { dest, a, b } => assemble_floating(InstrType::DoubleArithmetic, dest, a, Some(b), 0x0, 0x9),
+            DoubleSquareRoot { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x0, 0xA),
+            DoubleCubeRoot { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x0, 0xB),
+            DoubleSquare { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x0, 0xC),
+            DoubleCube { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x0, 0xD),
+            DoubleLogarithm { dest, a, b } => assemble_floating(InstrType::DoubleArithmetic, dest, a, Some(b), 0x0, 0xE),
+            DoubleNaturalLogarithm { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x0, 0xF),
+            DoubleAbsolute { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x1, 0x0),
+            DoubleSine { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x1, 0x1),
+            DoubleCosine { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x1, 0x2),
+            DoubleTangent { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x1, 0x3),
+            DoubleArcsine { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x1, 0x4),
+            DoubleArccosine { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x1, 0x5),
+            DoubleArctangent { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x1, 0x6),
+            DoubleFloor { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x1, 0x7),
+            DoubleCeil { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x1, 0x8),
+            DoubleRound { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x1, 0x9),
+            DoubleMinimum { dest, a, b } => assemble_floating(InstrType::DoubleArithmetic, dest, a, Some(b), 0x1, 0xA),
+            DoubleMaximum { dest, a, b } => assemble_floating(InstrType::DoubleArithmetic, dest, a, Some(b), 0x1, 0xB),
+            DoubleSign { dest, src } => assemble_floating(InstrType::DoubleArithmetic, dest, src, None, 0x1, 0xC),
+            DoubleAbsoluteDifference { dest, a, b } => assemble_floating(InstrType::DoubleArithmetic, dest, a, Some(b), 0x1, 0xD),
+            DoubleLoadInfinity { dest } => pack_nibbles([InstrType::DoubleArithmetic.into(), dest.into(), 0, 0, 0, 0, 0x1, 0xE]),
+            DoubleLoadNaN { dest } => pack_nibbles([InstrType::DoubleArithmetic.into(), dest.into(), 0, 0, 0, 0, 0x1, 0xF]),
         }
-    }
-
-    pub fn assemble(self) -> u32 {
-        match self {
-            Instruction::Nop => 0,
-
-            // Arithmetic
-            Instruction::Add { dest, a, b } => Self::construct_arithmetic_instruction(InstrType::Arithmetic, dest, a, b, 0x0),
-            Instruction::Subtract { dest, a, b } => Self::construct_arithmetic_instruction(InstrType::Arithmetic, dest, a, b, 0x2),
-            Instruction::Multiply { dest, a, b } => Self::construct_arithmetic_instruction(InstrType::Arithmetic, dest, a, b, 0x4),
-            Instruction::Divide { dest, a, b } => {
-                match (a, b) {
-                    (Left(r1), Left(r2)) => denibble([InstrType::Arithmetic.into(), dest.into(), r1.into(), r2.into(), 0, 0, 0, 0x7]),
-                    (Left(r), Right(imm)) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm);
-                        denibble([InstrType::Arithmetic.into(), dest.into(), r.into(), n0, n1, n2, n3, 0x8])
-                    }
-                    (Right(imm), Left(r)) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm);
-                        denibble([InstrType::Arithmetic.into(), dest.into(), r.into(), n0, n1, n2, n3, 0x9])
-                    }
-                    (Right(_), Right(_)) => panic!("bad code")
-                }
-            }
-            Instruction::DivideSigned { dest, a, b } => {
-                match (a, b) {
-                    (Left(r1), Left(r2)) => denibble([InstrType::Arithmetic.into(), dest.into(), r1.into(), r2.into(), 0, 0, 0, 0xA]),
-                    (Left(r), Right(imm)) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm);
-                        denibble([InstrType::Arithmetic.into(), dest.into(), r.into(), n0, n1, n2, n3, 0xB])
-                    }
-                    (Right(imm), Left(r)) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm);
-                        denibble([InstrType::Arithmetic.into(), dest.into(), r.into(), n0, n1, n2, n3, 0xC])
-                    }
-                    (Right(_), Right(_)) => panic!("bad code")
-                }
-            }
-
-            // Bitwise
-            Instruction::And { dest, a, b } => denibble([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x0]),
-            Instruction::Or { dest, a, b } => denibble([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x1]),
-            Instruction::Xor { dest, a, b } => denibble([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x2]),
-            Instruction::Nand { dest, a, b } => denibble([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x3]),
-            Instruction::Nor { dest, a, b } => denibble([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x4]),
-            Instruction::Xnor { dest, a, b } => denibble([InstrType::Bitwise.into(), dest.into(), a.into(), b.into(), 0, 0, 0, 0x5]),
-            Instruction::Not { dest, src } => denibble([InstrType::Bitwise.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x6]),
-
-            // Shift & Rotate
-            Instruction::RightShift { dest, src, amount } => {
-                match amount {
-                    Left(reg) => denibble([InstrType::ShiftRotate.into(), dest.into(), src.into(), reg.into(), 0, 0, 0, 0x0]),
-                    Right(u6) => {
-                        let (n0, n1) = nibbles_u6(u6);
-                        denibble([InstrType::ShiftRotate.into(), dest.into(), src.into(), 0, 0, n0, n1, 0x1])
-                    }
-                }
-            }
-            Instruction::LeftShift { dest, src, amount } => {
-                match amount {
-                    Left(reg) => denibble([InstrType::ShiftRotate.into(), dest.into(), src.into(), reg.into(), 0, 0, 0, 0x2]),
-                    Right(u6) => {
-                        let (n0, n1) = nibbles_u6(u6);
-                        denibble([InstrType::ShiftRotate.into(), dest.into(), src.into(), 0, 0, n0, n1, 0x3])
-                    }
-                }
-            }
-            Instruction::RightRoll { dest, src, amount } => {
-                match amount {
-                    Left(reg) => denibble([InstrType::ShiftRotate.into(), dest.into(), src.into(), reg.into(), 0, 0, 0, 0x4]),
-                    Right(u6) => {
-                        let (n0, n1) = nibbles_u6(u6);
-                        denibble([InstrType::ShiftRotate.into(), dest.into(), src.into(), 0, 0, n0, n1, 0x5])
-                    }
-                }
-            }
-            Instruction::LeftRoll { dest, src, amount } => {
-                match amount {
-                    Left(reg) => denibble([InstrType::ShiftRotate.into(), dest.into(), src.into(), reg.into(), 0, 0, 0, 0x6]),
-                    Right(u6) => {
-                        let (n0, n1) = nibbles_u6(u6);
-                        denibble([InstrType::ShiftRotate.into(), dest.into(), src.into(), 0, 0, n0, n1, 0x7])
-                    }
-                }
-            }
-
-            // Data movement, Memory, Stack
-            Instruction::Move { dest, src } => denibble([InstrType::DataMemoryStack.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x0]),
-            Instruction::LoadImmediate { dest, slice, imm } => {
-                let (n0, n1, n2, n3) = nibbles_u16(imm);
-                denibble([InstrType::DataMemoryStack.into(), dest.into(), n0, n1, n2, n3, slice.get() as u32, 0x1])
-            }
-            Instruction::LoadRegister { dest, mem_ptr, slice } => {
-                match mem_ptr {
-                    Left(reg) => denibble([InstrType::DataMemoryStack.into(), dest.into(), reg.into(), 0, 0, 0, slice.get() as u32, 0x2]),
-                    Right(imm) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm);
-                        denibble([InstrType::DataMemoryStack.into(), dest.into(), n0, n1, n2, n3, slice.get() as u32, 0x3])
-                    }
-                }
-            }
-            Instruction::StoreRegister { src, mem_ptr, slice } => {
-                match mem_ptr {
-                    Left(reg) => denibble([InstrType::DataMemoryStack.into(), src.into(), reg.into(), 0, 0, 0, slice.get() as u32, 0x4]),
-                    Right(imm) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm);
-                        denibble([InstrType::DataMemoryStack.into(), src.into(), n0, n1, n2, n3, slice.get() as u32, 0x5])
-                    }
-                }
-            }
-            Instruction::Push { reg } => denibble([InstrType::DataMemoryStack.into(), reg.into(), 0, 0, 0, 0, 0, 0x6]),
-            Instruction::Pop { reg } => denibble([InstrType::DataMemoryStack.into(), reg.into(), 0, 0, 0, 0, 0, 0x7]),
-
-            // Comparison
-            Instruction::Compare { a, b, signed } => {
-                match (signed, a, b) {
-                    (false, Left(reg1), Left(reg2)) => denibble([InstrType::Comparison.into(), reg1.into(), reg2.into(), 0, 0, 0, 0, 0x0]),
-                    (false, Left(reg), Right(imm)) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm);
-                        denibble([InstrType::Comparison.into(), reg.into(), n0, n1, n2, n3, 0, 0x1])
-                    }
-                    (false, Right(imm), Left(reg)) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm);
-                        denibble([InstrType::Comparison.into(), reg.into(), n0, n1, n2, n3, 0, 0x2])
-                    }
-                    (false, Right(_), Right(_)) => panic!("bad code"),
-                    (true, Left(reg1), Left(reg2)) => denibble([InstrType::Comparison.into(), reg1.into(), reg2.into(), 0, 0, 0, 0, 0x3]),
-                    (true, Left(reg), Right(imm)) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm);
-                        denibble([InstrType::Comparison.into(), reg.into(), n0, n1, n2, n3, 0, 0x4])
-                    }
-                    (true, Right(imm), Left(reg)) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm);
-                        denibble([InstrType::Comparison.into(), reg.into(), n0, n1, n2, n3, 0, 0x5])
-                    }
-                    (true, Right(_), Right(_)) => panic!("bad code"),
-                }
-            }
-            Instruction::CompareFloat { a, b } => denibble([InstrType::Comparison.into(), a.into(), b.into(), 0, 0, 0, 0, 0x6]),
-            Instruction::CompareDouble { a, b } => denibble([InstrType::Comparison.into(), a.into(), b.into(), 0, 0, 0, 0, 0x7]),
-
-            // Branching
-            Instruction::Branch { offset: amount } => {
-                match amount {
-                    Left(reg) => denibble([InstrType::Branching.into(), reg.into(), 0, 0, 0, 0, 0, 0x0]),
-                    Right(imm) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm as u16);
-                        denibble([InstrType::Branching.into(), n0, n1, n2, n3, 0, 0, 0x1])
-                    }
-                }
-            }
-            Instruction::BranchGreater { offset: amount } => {
-                match amount {
-                    Left(reg) => denibble([InstrType::Branching.into(), reg.into(), 0, 0, 0, 0, 0, 0x2]),
-                    Right(imm) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm as u16);
-                        denibble([InstrType::Branching.into(), n0, n1, n2, n3, 0, 0, 0x3])
-                    }
-                }
-            }
-            Instruction::BranchEqual { offset: amount } => {
-                match amount {
-                    Left(reg) => denibble([InstrType::Branching.into(), reg.into(), 0, 0, 0, 0, 0, 0x4]),
-                    Right(imm) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm as u16);
-                        denibble([InstrType::Branching.into(), n0, n1, n2, n3, 0, 0, 0x5])
-                    }
-                }
-            }
-            Instruction::BranchSmaller { offset: amount } => {
-                match amount {
-                    Left(reg) => denibble([InstrType::Branching.into(), reg.into(), 0, 0, 0, 0, 0, 0x6]),
-                    Right(imm) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm as u16);
-                        denibble([InstrType::Branching.into(), n0, n1, n2, n3, 0, 0, 0x7])
-                    }
-                }
-            }
-            Instruction::BranchGreaterEqual { offset: amount } => {
-                match amount {
-                    Left(reg) => denibble([InstrType::Branching.into(), reg.into(), 0, 0, 0, 0, 0, 0x8]),
-                    Right(imm) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm as u16);
-                        denibble([InstrType::Branching.into(), n0, n1, n2, n3, 0, 0, 0x9])
-                    }
-                }
-            }
-            Instruction::BranchNotEqual { offset: amount } => {
-                match amount {
-                    Left(reg) => denibble([InstrType::Branching.into(), reg.into(), 0, 0, 0, 0, 0, 0xA]),
-                    Right(imm) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm as u16);
-                        denibble([InstrType::Branching.into(), n0, n1, n2, n3, 0, 0, 0xB])
-                    }
-                }
-            }
-            Instruction::BranchSmallerEqual { offset: amount } => {
-                match amount {
-                    Left(reg) => denibble([InstrType::Branching.into(), reg.into(), 0, 0, 0, 0, 0, 0xC]),
-                    Right(imm) => {
-                        let (n0, n1, n2, n3) = nibbles_u16(imm as u16);
-                        denibble([InstrType::Branching.into(), n0, n1, n2, n3, 0, 0, 0xD])
-                    }
-                }
-            }
-
-            // Conversions
-            Instruction::ImmediateToFloat { dest, imm } => {
-                let (n0, n1, n2, n3) = nibbles_u16(imm as u16);
-                denibble([InstrType::Conversion.into(), dest.into(), n0, n1, n2, n3, 0, 0x0])
-            }
-            Instruction::ImmediateToDouble { dest, imm } => {
-                let (n0, n1, n2, n3) = nibbles_u16(imm as u16);
-                denibble([InstrType::Conversion.into(), dest.into(), n0, n1, n2, n3, 0, 0x1])
-            }
-            Instruction::IntegerToFloat { dest, src } => denibble([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x2]),
-            Instruction::IntegerToDouble { dest, src } => denibble([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x3]),
-            Instruction::FloatToInteger { dest, src } => denibble([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x4]),
-            Instruction::FloatToDouble { dest, src } => denibble([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x5]),
-            Instruction::DoubleToInteger { dest, src } => denibble([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x6]),
-            Instruction::DoubleToFloat { dest, src } => denibble([InstrType::Conversion.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x7]),
-
-            // Floating point arithmetic
-            Instruction::FloatAdd { dest, a, b } => Self::construct_floating_instruction(dest, a, Some(b), 0x0, 0x0),
-            Instruction::FloatSubtract { dest, a, b } => Self::construct_floating_instruction(dest, a, Some(b), 0x0, 0x1),
-            Instruction::FloatMultiply { dest, a, b } => Self::construct_floating_instruction(dest, a, Some(b), 0x0, 0x2),
-            Instruction::FloatDivide { dest, a, b } => Self::construct_floating_instruction(dest, a, Some(b), 0x0, 0x3),
-            Instruction::FloatModulo { dest, a, b } => Self::construct_floating_instruction(dest, a, Some(b), 0x0, 0x4),
-            Instruction::FloatNegate { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x0, 0x5),
-            Instruction::FloatReciprocal { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x0, 0x6),
-            Instruction::FloatPower { dest, a, b } => Self::construct_floating_instruction(dest, a, Some(b), 0x0, 0x7),
-            Instruction::FloatExponential { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x0, 0x8),
-            Instruction::FloatRoot { dest, a, b } => Self::construct_floating_instruction(dest, a, Some(b), 0x0, 0x9),
-            Instruction::FloatSquareRoot { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x0, 0xA),
-            Instruction::FloatCubeRoot { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x0, 0xB),
-            Instruction::FloatSquare { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x0, 0xC),
-            Instruction::FloatCube { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x0, 0xD),
-            Instruction::FloatLogarithm { dest, a, b } => Self::construct_floating_instruction(dest, a, Some(b), 0x0, 0xE),
-            Instruction::FloatNaturalLogarithm { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x0, 0xF),
-            Instruction::FloatAbsolute { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x1, 0x0),
-            Instruction::FloatSine { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x1, 0x1),
-            Instruction::FloatCosine { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x1, 0x2),
-            Instruction::FloatTangent { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x1, 0x3),
-            Instruction::FloatArcsine { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x1, 0x4),
-            Instruction::FloatArccosine { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x1, 0x5),
-            Instruction::FloatArctangent { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x1, 0x6),
-            Instruction::FloatFloor { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x1, 0x7),
-            Instruction::FloatCeil { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x1, 0x8),
-            Instruction::FloatRound { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x1, 0x9),
-            Instruction::FloatMinimum { dest, a, b } => Self::construct_floating_instruction(dest, a, Some(b), 0x1, 0xA),
-            Instruction::FloatMaximum { dest, a, b } => Self::construct_floating_instruction(dest, a, Some(b), 0x1, 0xB),
-            Instruction::FloatSign { dest, src } => Self::construct_floating_instruction(dest, src, None, 0x1, 0xC),
-            Instruction::FloatAbsoluteDifference { dest, a, b } => Self::construct_floating_instruction(dest, a, Some(b), 0x1, 0xD),
-            Instruction::FloatLoadInfinity { dest } => denibble([InstrType::FloatingArithmetic.into(), dest.into(), 0, 0, 0, 0, 0x1, 0xE]),
-            Instruction::FloatLoadNaN { dest } => denibble([InstrType::FloatingArithmetic.into(), dest.into(), 0, 0, 0, 0, 0x1, 0xF]),
-
-            // Double precision arithmetic
-            Instruction::DoubleAdd { dest, a, b } => Self::construct_double_instruction(dest, a, Some(b), 0x0, 0x0),
-            Instruction::DoubleSubtract { dest, a, b } => Self::construct_double_instruction(dest, a, Some(b), 0x0, 0x1),
-            Instruction::DoubleMultiply { dest, a, b } => Self::construct_double_instruction(dest, a, Some(b), 0x0, 0x2),
-            Instruction::DoubleDivide { dest, a, b } => Self::construct_double_instruction(dest, a, Some(b), 0x0, 0x3),
-            Instruction::DoubleModulo { dest, a, b } => Self::construct_double_instruction(dest, a, Some(b), 0x0, 0x4),
-            Instruction::DoubleNegate { dest, src } => Self::construct_double_instruction(dest, src, None, 0x0, 0x5),
-            Instruction::DoubleReciprocal { dest, src } => Self::construct_double_instruction(dest, src, None, 0x0, 0x6),
-            Instruction::DoublePower { dest, a, b } => Self::construct_double_instruction(dest, a, Some(b), 0x0, 0x7),
-            Instruction::DoubleExponential { dest, src } => Self::construct_double_instruction(dest, src, None, 0x0, 0x8),
-            Instruction::DoubleRoot { dest, a, b } => Self::construct_double_instruction(dest, a, Some(b), 0x0, 0x9),
-            Instruction::DoubleSquareRoot { dest, src } => Self::construct_double_instruction(dest, src, None, 0x0, 0xA),
-            Instruction::DoubleCubeRoot { dest, src } => Self::construct_double_instruction(dest, src, None, 0x0, 0xB),
-            Instruction::DoubleSquare { dest, src } => Self::construct_double_instruction(dest, src, None, 0x0, 0xC),
-            Instruction::DoubleCube { dest, src } => Self::construct_double_instruction(dest, src, None, 0x0, 0xD),
-            Instruction::DoubleLogarithm { dest, a, b } => Self::construct_double_instruction(dest, a, Some(b), 0x0, 0xE),
-            Instruction::DoubleNaturalLogarithm { dest, src } => Self::construct_double_instruction(dest, src, None, 0x0, 0xF),
-            Instruction::DoubleAbsolute { dest, src } => Self::construct_double_instruction(dest, src, None, 0x1, 0x0),
-            Instruction::DoubleSine { dest, src } => Self::construct_double_instruction(dest, src, None, 0x1, 0x1),
-            Instruction::DoubleCosine { dest, src } => Self::construct_double_instruction(dest, src, None, 0x1, 0x2),
-            Instruction::DoubleTangent { dest, src } => Self::construct_double_instruction(dest, src, None, 0x1, 0x3),
-            Instruction::DoubleArcsine { dest, src } => Self::construct_double_instruction(dest, src, None, 0x1, 0x4),
-            Instruction::DoubleArccosine { dest, src } => Self::construct_double_instruction(dest, src, None, 0x1, 0x5),
-            Instruction::DoubleArctangent { dest, src } => Self::construct_double_instruction(dest, src, None, 0x1, 0x6),
-            Instruction::DoubleFloor { dest, src } => Self::construct_double_instruction(dest, src, None, 0x1, 0x7),
-            Instruction::DoubleCeil { dest, src } => Self::construct_double_instruction(dest, src, None, 0x1, 0x8),
-            Instruction::DoubleRound { dest, src } => Self::construct_double_instruction(dest, src, None, 0x1, 0x9),
-            Instruction::DoubleMinimum { dest, a, b } => Self::construct_double_instruction(dest, a, Some(b), 0x1, 0xA),
-            Instruction::DoubleMaximum { dest, a, b } => Self::construct_double_instruction(dest, a, Some(b), 0x1, 0xB),
-            Instruction::DoubleSign { dest, src } => Self::construct_double_instruction(dest, src, None, 0x1, 0xC),
-            Instruction::DoubleAbsoluteDifference { dest, a, b } => Self::construct_double_instruction(dest, a, Some(b), 0x1, 0xD),
-            Instruction::DoubleLoadInfinity { dest } => denibble([InstrType::DoubleArithmetic.into(), dest.into(), 0, 0, 0, 0, 0x1, 0xE]),
-            Instruction::DoubleLoadNaN { dest } => denibble([InstrType::DoubleArithmetic.into(), dest.into(), 0, 0, 0, 0, 0x1, 0xF]),
-        }
-    }
-
-    fn construct_floating_instruction(dest: Register, a: Register, b: Option<Register>, byte7: u32, byte8: u32) -> u32 {
-        denibble([
-            InstrType::FloatingArithmetic.into(),
-            dest.into(),
-            a.into(),
-            b.map_or(0, Register::into),
-            0,
-            0,
-            byte7,
-            byte8
-        ])
-    }
-
-    fn construct_double_instruction(dest: Register, a: Register, b: Option<Register>, byte7: u32, byte8: u32) -> u32 {
-        denibble([
-            InstrType::DoubleArithmetic.into(),
-            dest.into(),
-            a.into(),
-            b.map_or(0, Register::into),
-            0,
-            0,
-            byte7,
-            byte8
-        ])
     }
 }
