@@ -46,10 +46,10 @@ pub enum Opcode {
     DoubleToFloat,
 }
 
-impl TryFrom<&str> for Opcode {
-    type Error = String;
+impl FromStr for Opcode {
+    type Err = String;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "nop"    => Ok(Opcode::Nop),
             "add"    => Ok(Opcode::Add),
@@ -94,14 +94,6 @@ impl TryFrom<&str> for Opcode {
             "dtof"   => Ok(Opcode::DoubleToFloat),
             _ => Err(format!("Unknown opcode: '{}'", value)),
         }
-    }
-}
-
-impl FromStr for Opcode {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Opcode::try_from(s)
     }
 }
 

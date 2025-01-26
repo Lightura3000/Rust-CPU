@@ -1,4 +1,5 @@
 use std::ops::Range;
+use std::str::FromStr;
 use crate::assembler::{
     opcode::Opcode,
     register::Register,
@@ -24,7 +25,7 @@ pub enum TokenVariant {
 
 impl From<&str> for TokenVariant {
     fn from(value: &str) -> Self {
-        if let Ok(opcode) = value.try_into() {
+        if let Ok(opcode) = FromStr::from_str(value) {
             Self::Opcode(opcode)
         } else if value.chars().nth(0) == Some('.') {
             Self::Label(value.to_owned())
