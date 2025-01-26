@@ -16,15 +16,15 @@ enum InstrType {
     DoubleArithmetic = 0x9,
 }
 
-impl Into<u32> for InstrType {
-    fn into(self) -> u32 {
-        self as u32
+impl From<InstrType> for u32 {
+    fn from(t: InstrType) -> Self {
+        t as u32
     }
 }
 
-impl Into<u32> for Register {
-    fn into(self) -> u32 {
-        self as u32
+impl From<Register> for u32 {
+    fn from(r: Register) -> Self {
+        r as u32
     }
 }
 
