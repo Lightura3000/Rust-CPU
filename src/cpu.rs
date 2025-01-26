@@ -1,13 +1,12 @@
 use std::{cmp::Ordering, fmt::Display};
 
 type InstrFn = fn(&mut CPU, u32);
-const MEMORY_SIZE: usize = 4096;
 const INSTR_PTR: usize = 15;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct CPU {
     pub regs: [u64; 16],
-    pub memory: [u8; 4096],
+    pub memory: Vec<u8>,
     pub privileged: bool,
     pub flags: Flags,
 }
@@ -64,23 +63,24 @@ pub struct Flags {
     smaller: bool,
 }
 
+impl Default for CPU {
+    fn default() -> Self {
+        Self {
+            regs: [0; 16],
+            memory: vec![0; 4096],
+            privileged: true,
+            flags: Flags::default(),
+        }
+    }
+}
+
 impl CPU {
-    #[allow(dead_code)]
-    pub fn new(regs: [u64; 16], memory: [u8; MEMORY_SIZE], privileged: bool, flags: Flags) -> Self {
+    pub fn new(regs: [u64; 16], memory: Vec<u8>, privileged: bool, flags: Flags) -> Self {
         Self {
             regs,
             memory,
             privileged,
             flags,
-        }
-    }
-
-    pub fn default() -> Self {
-        Self {
-            regs: [0; 16],
-            memory: [0; MEMORY_SIZE],
-            privileged: true,
-            flags: Flags::default(),
         }
     }
 
@@ -605,6 +605,9 @@ impl CPU {
     }
 
     fn fetch_instruction(&mut self, address: usize) -> u32 {
+        if self.memory.len() <= address + 3 {
+            panic!("Instruction pointer out of bounds: reading bytes [{}; {}] but memory length is {}", address, address + 3, self.memory.len());
+        }
         let byte1 = self.memory[address] as u32;
         let byte2 = self.memory[address + 1] as u32;
         let byte3 = self.memory[address + 2] as u32;
@@ -644,7 +647,6 @@ impl NthRoot for f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::Rng;
 
     #[test]
     #[ignore]
@@ -655,7 +657,7 @@ mod tests {
         let fill = iterations.to_string().len();
 
         for i in 0..iterations {
-            let random_instr = rand::thread_rng().gen_range(0x00000000..=0x3D000000);
+            let random_instr = rand::random::<u32>();
             cpu.exec(random_instr);
 
             println!("{:0fill$}. {:#010x}", i+1, random_instr);
