@@ -5,3 +5,5 @@ mod opcode;
 mod token;
 mod assembly_error;
 mod tokenize;
+mod unsigned_newtypes;
+mod nibbles;
