@@ -1,6 +1,7 @@
-use either::Either::{self, Left, Right};
+use either::{Either, Left, Right};
 use super::register::Register;
 use super::unsigned_newtypes::{U2, U3, U6};
+use super::nibbles::{pack_nibbles, split_u16_into_nibbles, split_u6_into_nibbles, denibble, nibbles_u16, nibbles_u6};
 
 #[repr(u32)]
 enum InstrType {
@@ -27,19 +28,7 @@ impl Into<u32> for Register {
     }
 }
 
-fn denibble(nibbles: [u32; 8]) -> u32 {
-    const MASKS: [u32; 8] = [
-        0xF0000000,
-        0x0F000000,
-        0x00F00000,
-        0x000F0000,
-        0x0000F000,
-        0x00000F00,
-        0x000000F0,
-        0x0000000F,
-    ];
-
-    let mut out = 0;
+// ---------------------------------------------------------------------------------------------
 
     nibbles
         .iter()
