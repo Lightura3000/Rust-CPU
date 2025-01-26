@@ -75,15 +75,6 @@ impl Default for CPU {
 }
 
 impl CPU {
-    pub fn new(regs: [u64; 16], memory: Vec<u8>, privileged: bool, flags: Flags) -> Self {
-        Self {
-            regs,
-            memory,
-            privileged,
-            flags,
-        }
-    }
-
     pub fn run(&mut self, cycles: u64) {
         for _ in 0..cycles {
             let address = self.regs[INSTR_PTR] as usize;
