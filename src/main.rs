@@ -5,9 +5,18 @@ use assembler::assemble::assemble;
 use cpu::CPU;
 
 fn main() {
-    let file = "scripts/fibonacci";
+    let args: Vec<String> = std::env::args().collect();
+    dbg!(&args);
 
-    let file_content = std::fs::read_to_string(file).unwrap();
+    let file_path = &args[1];
+
+    let file_content = match std::fs::read_to_string(file_path) {
+        Ok(file_content) => file_content,
+        Err(err) => {
+            println!("Error: {:?}", err);
+            std::process::exit(1);
+        }
+    };
 
     let instructions = match assemble(file_content) {
         Ok(instructions) => instructions,
