@@ -1,4 +1,5 @@
-use super::types::token::Token;
+use crate::assembler::assembly_error::{AssemblyError, AssemblyErrorVariant};
+use super::types::token::{Token, TokenVariant};
 
 fn split_with_char_indices(input: &str) -> impl Iterator<Item = (usize, &str)> {
     input.split_whitespace().map(|word| {
@@ -7,16 +8,24 @@ fn split_with_char_indices(input: &str) -> impl Iterator<Item = (usize, &str)> {
     })
 }
 
-pub fn tokenize(src: &str) -> Vec<Vec<Token>> {
+pub fn tokenize(src: &str) -> Result<Vec<Vec<Token>>, AssemblyError> {
     let mut tokens = Vec::new();
 
     for (line, content) in src.lines().enumerate() {
         let mut line_tokens = Vec::new();
 
         for (index, split) in split_with_char_indices(content) {
+            let variant = match TokenVariant::try_from(split) {
+                Ok(variant) => variant,
+                Err(_) => return Err(AssemblyError {
+                    line,
+                    variant: AssemblyErrorVariant::UnrecognizableParam,
+                }),
+            };
+
             line_tokens.push(Token {
                 line,
-                variant: split.into(),
+                variant,
                 range: index..(index + split.len()),
             });
         }
@@ -26,5 +35,5 @@ pub fn tokenize(src: &str) -> Vec<Vec<Token>> {
         }
     }
 
-    tokens
+    Ok(tokens)
 }

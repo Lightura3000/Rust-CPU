@@ -8,7 +8,11 @@ use std::collections::HashMap;
 
 pub fn assemble(src: String) -> Result<Vec<u32>, String> {
     let mut instructions = Vec::new();
-    let token_lines = tokenize(&src);
+
+    let token_lines = match tokenize(&src) {
+        Ok(token_lines) => token_lines,
+        Err(err) => return Err(err.to_string()),
+    };
 
     let labels = extract_labels(&token_lines);
 

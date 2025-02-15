@@ -13,6 +13,7 @@ pub enum AssemblyErrorVariant {
     NoLabelFound { name: String },
     OffsetTooLarge { limit: i32, required: i64 },
     UnknownTokenPattern,
+    UnrecognizableParam,
 }
 
 impl Display for AssemblyError {
@@ -25,6 +26,7 @@ impl Display for AssemblyError {
             AssemblyErrorVariant::NoLabelFound { name } => format!("No label named {} found", name),
             AssemblyErrorVariant::OffsetTooLarge { limit, required } => format!("Offset is too large. Required {} but limit is {}", required, limit),
             AssemblyErrorVariant::UnknownTokenPattern => "Unknown token pattern".to_string(),
+            AssemblyErrorVariant::UnrecognizableParam => "Some parameter can't be tokenized".to_string(),
         };
         let line_added = format!("Line {}: {}", self.line + 1, str);
         write!(f, "{}", line_added)

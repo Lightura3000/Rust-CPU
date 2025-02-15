@@ -20,25 +20,26 @@ pub enum TokenVariant {
     Signed(i16),
     Register(Register),
     Bool(bool),
-    Unknown,
 }
 
-impl From<&str> for TokenVariant {
-    fn from(value: &str) -> Self {
+impl TryFrom<&str> for TokenVariant {
+    type Error = ();
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Ok(opcode) = FromStr::from_str(value) {
-            Self::Opcode(opcode)
+            Ok(Self::Opcode(opcode))
         } else if value.chars().nth(0) == Some('.') {
-            Self::Label(value.to_owned())
+            Ok(Self::Label(value.to_owned()))
         } else if let Ok(value) = value.parse::<u16>() {
-            Self::Unsigned(value)
+            Ok(Self::Unsigned(value))
         } else if let Ok(value) = value.parse::<i16>() {
-            Self::Signed(value)
+            Ok(Self::Signed(value))
         } else if let Ok(register) = value.try_into() {
-            Self::Register(register)
+            Ok(Self::Register(register))
         } else if let Ok(boolean) = value.parse::<bool>() {
-            Self::Bool(boolean)
+            Ok(Self::Bool(boolean))
         } else {
-            Self::Unknown
+            Err(())
         }
     }
 }

@@ -32,34 +32,28 @@ pub enum AmbiguousToken {
     Bool,     // For signed/unsigned comparisons
 }
 
-impl TryFrom<&TokenVariant> for AmbiguousToken {
-    type Error = ();
-
-    fn try_from(value: &TokenVariant) -> Result<Self, Self::Error> {
+impl From<&TokenVariant> for AmbiguousToken {
+    fn from(value: &TokenVariant) -> Self {
         match value {
-            TokenVariant::Opcode(opc) => Ok(AmbiguousToken::Opcode(*opc)),
-            TokenVariant::Label(_) => Ok(AmbiguousToken::Label),
-            TokenVariant::Unsigned(_) => Ok(AmbiguousToken::Unsigned),
-            TokenVariant::Signed(_) => Ok(AmbiguousToken::Signed),
-            TokenVariant::Register(_) => Ok(AmbiguousToken::Register),
-            TokenVariant::Bool(_) => Ok(AmbiguousToken::Bool),
-            TokenVariant::Unknown => Err(()),
+            TokenVariant::Opcode(opc) => AmbiguousToken::Opcode(*opc),
+            TokenVariant::Label(_) => AmbiguousToken::Label,
+            TokenVariant::Unsigned(_) => AmbiguousToken::Unsigned,
+            TokenVariant::Signed(_) => AmbiguousToken::Signed,
+            TokenVariant::Register(_) => AmbiguousToken::Register,
+            TokenVariant::Bool(_) => AmbiguousToken::Bool,
         }
     }
 }
 
-impl TryInto<AmbiguousToken> for TokenVariant {
-    type Error = ();
-
-    fn try_into(self) -> Result<AmbiguousToken, Self::Error> {
+impl Into<AmbiguousToken> for TokenVariant {
+    fn into(self) -> AmbiguousToken {
         match self {
-            TokenVariant::Opcode(opc) => Ok(AmbiguousToken::Opcode(opc)),
-            TokenVariant::Label(_) => Ok(AmbiguousToken::Label),
-            TokenVariant::Unsigned(_) => Ok(AmbiguousToken::Unsigned),
-            TokenVariant::Signed(_) => Ok(AmbiguousToken::Signed),
-            TokenVariant::Register(_) => Ok(AmbiguousToken::Register),
-            TokenVariant::Bool(_) => Ok(AmbiguousToken::Bool),
-            TokenVariant::Unknown => Err(()),
+            TokenVariant::Opcode(opc) => AmbiguousToken::Opcode(opc),
+            TokenVariant::Label(_) => AmbiguousToken::Label,
+            TokenVariant::Unsigned(_) => AmbiguousToken::Unsigned,
+            TokenVariant::Signed(_) => AmbiguousToken::Signed,
+            TokenVariant::Register(_) => AmbiguousToken::Register,
+            TokenVariant::Bool(_) => AmbiguousToken::Bool,
         }
     }
 }
