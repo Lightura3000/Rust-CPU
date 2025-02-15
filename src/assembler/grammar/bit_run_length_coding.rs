@@ -22,17 +22,16 @@ impl FromStr for BitRunLengthCoding {
         }
 
         let mut sections = Vec::new();
-        let mut current_char = s.chars().last().unwrap();
+        let mut current_char = s.chars().nth(0).unwrap();
         let mut occurences = 0;
 
-        for (rev_idx, char) in s.chars().enumerate() {
+        for (idx, char) in s.chars().enumerate() {
             // Check for unusable characters
             if char != '0' && char != '1' && !char.is_ascii_uppercase() {
                 if char == ' ' {
                     continue;
                 } else {
-                    let true_index = EXPECTED_LEN - rev_idx - 1; // rev_idx starts at EXPECTED_LEN - 1 and goes towards 0
-                    return Err(format!("Invalid character `{}` at index {}", char, true_index));
+                    return Err(format!("Invalid character `{}` at index {}", char, idx));
                 }
             }
 
