@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use either::{Either, Left, Right};
+use arbitrary_int::{u2, u3, u6, Number};
 use super::{
     constructor::Instruction,
-    unsigned_newtypes::{U2, U3, U6},
-    opcode::Opcode,
-    register::Register,
-    token::{Token, TokenVariant::*},
+    types::opcode::Opcode,
+    types::register::Register,
+    types::token::{Token, TokenVariant::*},
     assembly_error::{AssemblyError, AssemblyErrorVariant},
     tokenize::tokenize,
 };
@@ -218,17 +218,17 @@ fn process_left_roll(params: &[Token]) -> Result<Instruction, AssemblyErrorVaria
     Ok(Instruction::LeftRoll { dest, src, amount })
 }
 
-fn process_shift_and_roll(params: &[Token]) -> Result<(Register, Register, Either<Register, U6>), AssemblyErrorVariant> {
+fn process_shift_and_roll(params: &[Token]) -> Result<(Register, Register, Either<Register, u6>), AssemblyErrorVariant> {
     expect_param_amount(params, 3)?;
 
     match (&params[0].variant, &params[1].variant, &params[2].variant) {
         (Register(dest), Register(src), Register(amount)) => Ok((*dest, *src, Left(*amount))),
         (Register(dest), Register(src), Unsigned(amount)) => {
-            if *amount > U6::MAX as u16 {
-                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: U6::MAX as u16, got: *amount });
+            if *amount > u6::MAX.into() {
+                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: u6::MAX.into(), got: *amount });
             }
 
-            Ok((*dest, *src, Right(U6::new(*amount as u8).unwrap())))
+            Ok((*dest, *src, Right(u6::new(*amount as u8))))
         }
         _ => Err(AssemblyErrorVariant::ParamTypes),
     }
@@ -253,13 +253,13 @@ fn process_load_immediate(params: &[Token]) -> Result<Instruction, AssemblyError
 
     match (&params[0].variant, &params[1].variant, &params[2].variant) {
         (Register(dest), Unsigned(slice), Unsigned(imm)) => {
-            if *slice > U6::MAX as u16 {
-                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: U6::MAX as u16, got: *slice });
+            if *slice > u6::MAX.into() {
+                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: u6::MAX.into(), got: *slice });
             }
 
             Ok(Instruction::LoadImmediate {
                 dest: *dest,
-                slice: U2::new(*slice as u8).unwrap(),
+                slice: u2::new(*slice as u8),
                 imm: *imm,
             })
         }
@@ -273,26 +273,26 @@ fn process_load_register(params: &[Token]) -> Result<Instruction, AssemblyErrorV
 
     match (&params[0].variant, &params[1].variant, &params[2].variant) {
         (Register(dest), Register(mem_ptr), Unsigned(slice)) => {
-            if *slice > U3::MAX as u16 {
-                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: U3::MAX as u16, got: *slice });
+            if *slice > u3::MAX.into() {
+                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: u3::MAX.into(), got: *slice });
             }
 
             Ok(Instruction::LoadRegister {
                 dest: *dest,
                 mem_ptr: Left(*mem_ptr),
-                slice: U3::new(*slice as u8).unwrap()
+                slice: u3::new(*slice as u8).into()
             })
         }
 
         (Register(dest), Unsigned(mem_ptr), Unsigned(slice)) => {
-            if *slice > U3::MAX as u16 {
-                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: U3::MAX as u16, got: *slice });
+            if *slice > u3::MAX.into() {
+                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: u3::MAX.into(), got: *slice });
             }
 
             Ok(Instruction::LoadRegister {
                 dest: *dest,
                 mem_ptr: Right(*mem_ptr),
-                slice: U3::new(*slice as u8).unwrap()
+                slice: u3::new(*slice as u8).into()
             })
         }
 
@@ -305,26 +305,26 @@ fn process_store_register(params: &[Token]) -> Result<Instruction, AssemblyError
 
     match (&params[0].variant, &params[1].variant, &params[2].variant) {
         (Register(src), Register(mem_ptr), Unsigned(slice)) => {
-            if *slice > U3::MAX as u16 {
-                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: U3::MAX as u16, got: *slice });
+            if *slice > u3::MAX.into() {
+                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: u3::MAX.into(), got: *slice });
             }
 
             Ok(Instruction::StoreRegister {
                 src: *src,
                 mem_ptr: Left(*mem_ptr),
-                slice: U3::new(*slice as u8).unwrap(),
+                slice: u3::new(*slice as u8).into(),
             })
         }
 
         (Register(src), Unsigned(mem_ptr), Unsigned(slice)) => {
-            if *slice > U3::MAX as u16 {
-                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: U3::MAX as u16, got: *slice });
+            if *slice > u3::MAX.into() {
+                return Err(AssemblyErrorVariant::ImmediateTooLarge { max: u3::MAX.into(), got: *slice });
             }
 
             Ok(Instruction::StoreRegister {
                 src: *src,
                 mem_ptr: Right(*mem_ptr),
-                slice: U3::new(*slice as u8).unwrap(),
+                slice: u3::new(*slice as u8).into(),
             })
         }
 

@@ -1,6 +1,6 @@
 use either::{Either, Left, Right};
-use super::register::Register;
-use super::unsigned_newtypes::{U2, U3, U6};
+use arbitrary_int::{u2, u3, u6};
+use super::types::register::Register;
 use super::nibbles::{pack_nibbles, split_u16_into_nibbles, split_u6_into_nibbles};
 
 // ---------------------------------------------------------------------------------------------
@@ -95,7 +95,7 @@ fn assemble_shift_or_rotate(
     instr_type: InstrType,
     dest: Register,
     src: Register,
-    amount: Either<Register, U6>,
+    amount: Either<Register, u6>,
     subcode_reg: u32,
     subcode_imm: u32
 ) -> u32 {
@@ -183,14 +183,14 @@ pub enum Instruction {
     Nor { dest: Register, a: Register, b: Register },
     Xnor { dest: Register, a: Register, b: Register },
     Not { dest: Register, src: Register },
-    RightShift { dest: Register, src: Register, amount: Either<Register, U6> },
-    LeftShift { dest: Register, src: Register, amount: Either<Register, U6> },
-    RightRoll { dest: Register, src: Register, amount: Either<Register, U6> },
-    LeftRoll { dest: Register, src: Register, amount: Either<Register, U6> },
+    RightShift { dest: Register, src: Register, amount: Either<Register, u6> },
+    LeftShift { dest: Register, src: Register, amount: Either<Register, u6> },
+    RightRoll { dest: Register, src: Register, amount: Either<Register, u6> },
+    LeftRoll { dest: Register, src: Register, amount: Either<Register, u6> },
     Move { dest: Register, src: Register },
-    LoadImmediate { dest: Register, slice: U2, imm: u16 },
-    LoadRegister { dest: Register, mem_ptr: Either<Register, u16>, slice: U3 },
-    StoreRegister { src: Register, mem_ptr: Either<Register, u16>, slice: U3 },
+    LoadImmediate { dest: Register, slice: u2, imm: u16 },
+    LoadRegister { dest: Register, mem_ptr: Either<Register, u16>, slice: u3 },
+    StoreRegister { src: Register, mem_ptr: Either<Register, u16>, slice: u3 },
     Push { reg: Register },
     Pop { reg: Register },
     Compare { a: Either<Register, u16>, b: Either<Register, u16>, signed: bool },
@@ -310,20 +310,20 @@ impl Instruction {
             Move { dest, src } => pack_nibbles([InstrType::DataMemoryStack.into(), dest.into(), src.into(), 0, 0, 0, 0, 0x0]),
             LoadImmediate { dest, slice, imm } => {
                 let (n0, n1, n2, n3) = split_u16_into_nibbles(imm);
-                pack_nibbles([InstrType::DataMemoryStack.into(), dest.into(), n0, n1, n2, n3, slice.get() as u32, 0x1])
+                pack_nibbles([InstrType::DataMemoryStack.into(), dest.into(), n0, n1, n2, n3, slice.value() as u32, 0x1])
             }
             LoadRegister { dest, mem_ptr, slice } => match mem_ptr {
-                Left(reg) => pack_nibbles([InstrType::DataMemoryStack.into(), dest.into(), reg.into(), 0, 0, 0, slice.get() as u32, 0x2]),
+                Left(reg) => pack_nibbles([InstrType::DataMemoryStack.into(), dest.into(), reg.into(), 0, 0, 0, slice.value() as u32, 0x2]),
                 Right(imm) => {
                     let (n0, n1, n2, n3) = split_u16_into_nibbles(imm);
-                    pack_nibbles([InstrType::DataMemoryStack.into(), dest.into(), n0, n1, n2, n3, slice.get() as u32, 0x3])
+                    pack_nibbles([InstrType::DataMemoryStack.into(), dest.into(), n0, n1, n2, n3, slice.value() as u32, 0x3])
                 }
             },
             StoreRegister { src, mem_ptr, slice } => match mem_ptr {
-                Left(reg) => pack_nibbles([InstrType::DataMemoryStack.into(), src.into(), reg.into(), 0, 0, 0, slice.get() as u32, 0x4]),
+                Left(reg) => pack_nibbles([InstrType::DataMemoryStack.into(), src.into(), reg.into(), 0, 0, 0, slice.value() as u32, 0x4]),
                 Right(imm) => {
                     let (n0, n1, n2, n3) = split_u16_into_nibbles(imm);
-                    pack_nibbles([InstrType::DataMemoryStack.into(), src.into(), n0, n1, n2, n3, slice.get() as u32, 0x5])
+                    pack_nibbles([InstrType::DataMemoryStack.into(), src.into(), n0, n1, n2, n3, slice.value() as u32, 0x5])
                 }
             },
             Push { reg } => pack_nibbles([InstrType::DataMemoryStack.into(), reg.into(), 0, 0, 0, 0, 0, 0x6]),

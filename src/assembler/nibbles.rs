@@ -1,4 +1,4 @@
-use crate::assembler::unsigned_newtypes::U6;
+use arbitrary_int::u6;
 
 /// A simpler nibble-packing function that arranges 8 nibbles into a 32-bit word.
 /// nibble[0] goes to the top 4 bits, nibble[7] goes to the bottom 4 bits:
@@ -24,8 +24,8 @@ pub fn split_u16_into_nibbles(v: u16) -> (u32, u32, u32, u32) {
 }
 
 /// Split a U6 into two nibbles.
-pub fn split_u6_into_nibbles(v: U6) -> (u32, u32) {
-    let val = v.get() as u32;
+pub fn split_u6_into_nibbles(v: u6) -> (u32, u32) {
+    let val: u32 = v.into();
     (
         (val >> 4) & 0xF,
         (val >> 0) & 0xF,

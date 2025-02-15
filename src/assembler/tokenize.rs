@@ -1,4 +1,4 @@
-use crate::assembler::token::Token;
+use super::types::token::Token;
 
 fn split_with_char_indices(input: &str) -> impl Iterator<Item = (usize, &str)> {
     input.split_whitespace().map(|word| {
