@@ -47,7 +47,6 @@ pub fn construct_instruction(tokens: &[TokenVariant], bit_pattern: &BitRunLength
             TokenVariant::Signed(value) => bit_push.push(*value as u16 as u32, count),
             TokenVariant::Register(reg) => bit_push.push(*reg as u32, count),
             TokenVariant::Bool(b) => bit_push.push(*b as u32, count),
-            TokenVariant::Unknown => return Err("'Unknown' token".to_string()),
         }
     }
 
