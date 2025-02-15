@@ -12,6 +12,7 @@ pub enum AssemblyErrorVariant {
     ImmediateTooLarge { max: u16, got: u16 },
     NoLabelFound { name: String },
     OffsetTooLarge { limit: i32, required: i64 },
+    UnknownTokenPattern,
 }
 
 impl Display for AssemblyError {
@@ -23,7 +24,9 @@ impl Display for AssemblyError {
             AssemblyErrorVariant::ImmediateTooLarge { max, got } => format!("Immediate is too large. Maximum is {} but got {}", max, got),
             AssemblyErrorVariant::NoLabelFound { name } => format!("No label named {} found", name),
             AssemblyErrorVariant::OffsetTooLarge { limit, required } => format!("Offset is too large. Required {} but limit is {}", required, limit),
+            AssemblyErrorVariant::UnknownTokenPattern => "Unknown token pattern".to_string(),
         };
-        write!(f, "{}", format!("Line {}: {}", self.line + 1, str))
+        let line_added = format!("Line {}: {}", self.line + 1, str);
+        write!(f, "{}", line_added)
     }
 }

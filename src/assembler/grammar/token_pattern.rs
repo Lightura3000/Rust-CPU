@@ -32,6 +32,22 @@ pub enum AmbiguousToken {
     Bool,     // For signed/unsigned comparisons
 }
 
+impl TryFrom<&TokenVariant> for AmbiguousToken {
+    type Error = ();
+
+    fn try_from(value: &TokenVariant) -> Result<Self, Self::Error> {
+        match value {
+            TokenVariant::Opcode(opc) => Ok(AmbiguousToken::Opcode(*opc)),
+            TokenVariant::Label(_) => Ok(AmbiguousToken::Label),
+            TokenVariant::Unsigned(_) => Ok(AmbiguousToken::Unsigned),
+            TokenVariant::Signed(_) => Ok(AmbiguousToken::Signed),
+            TokenVariant::Register(_) => Ok(AmbiguousToken::Register),
+            TokenVariant::Bool(_) => Ok(AmbiguousToken::Bool),
+            TokenVariant::Unknown => Err(()),
+        }
+    }
+}
+
 impl TryInto<AmbiguousToken> for TokenVariant {
     type Error = ();
 

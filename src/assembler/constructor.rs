@@ -1,7 +1,10 @@
+#![allow(dead_code)]
+
 use either::{Either, Left, Right};
 use arbitrary_int::{u2, u3, u6};
 use super::types::register::Register;
 use super::nibbles::{pack_nibbles, split_u16_into_nibbles, split_u6_into_nibbles};
+
 
 // ---------------------------------------------------------------------------------------------
 

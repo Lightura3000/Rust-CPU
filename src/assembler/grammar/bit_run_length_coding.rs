@@ -27,7 +27,7 @@ impl FromStr for BitRunLengthCoding {
 
         for (rev_idx, char) in s.chars().enumerate() {
             // Check for unusable characters
-            if char != '0' && char != '1' && !matches!(char, 'A'..='Z') {
+            if char != '0' && char != '1' && !char.is_ascii_uppercase() {
                 if char == ' ' {
                     continue;
                 } else {
@@ -47,7 +47,7 @@ impl FromStr for BitRunLengthCoding {
 
         sections.push((current_char, occurences));
 
-        Ok(Self { 0: sections })
+        Ok(Self(sections))
     }
 }
 

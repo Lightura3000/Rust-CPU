@@ -7,7 +7,7 @@ fn split_with_char_indices(input: &str) -> impl Iterator<Item = (usize, &str)> {
     })
 }
 
-pub fn tokenize(src: &String) -> Vec<Vec<Token>> {
+pub fn tokenize(src: &str) -> Vec<Vec<Token>> {
     let mut tokens = Vec::new();
 
     for (line, content) in src.lines().enumerate() {
@@ -21,7 +21,7 @@ pub fn tokenize(src: &String) -> Vec<Vec<Token>> {
             });
         }
 
-        if line_tokens.len() > 0 {
+        if !line_tokens.is_empty() {
             tokens.push(line_tokens);
         }
     }

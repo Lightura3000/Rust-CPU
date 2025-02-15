@@ -1,5 +1,5 @@
+use std::collections::HashMap;
 use super::{
-    super::types::opcode::Opcode as Opc,
     bit_push::BitPush,
     bit_run_length_coding::BitRunLengthCoding,
     get_patterns::get_patterns,
@@ -9,7 +9,7 @@ use crate::assembler::grammar::encoding::Encoding;
 use crate::assembler::types::token::TokenVariant;
 
 pub fn find_matching_pattern(tokens: &[AmbiguousToken]) -> Option<TokenPattern> {
-    let matching_patterns = get_patterns().into_iter().filter(|p| p.matches(&tokens)).collect::<Vec<_>>();
+    let matching_patterns = get_patterns().into_iter().filter(|p| p.matches(tokens)).collect::<Vec<_>>();
     match matching_patterns.len() {
         0 => None,
         1 => Some(matching_patterns[0].clone()),
@@ -18,11 +18,11 @@ pub fn find_matching_pattern(tokens: &[AmbiguousToken]) -> Option<TokenPattern> 
 }
 
 /// Attemps to construct an assembled instruction from tokens
-fn construct_instruction(tokens: &[TokenVariant], bit_pattern: &BitRunLengthCoding, encoding: &Encoding) -> Result<u32, String> {
+pub fn construct_instruction(tokens: &[TokenVariant], bit_pattern: &BitRunLengthCoding, encoding: &Encoding, labels: &HashMap<String, usize>) -> Result<u32, String> {
     let mut bit_push = BitPush::new();
 
     for &(ch, count) in bit_pattern.get() {
-        if ch != '0' && ch != '1' && !('A'..='Z').contains(&ch) {
+        if ch != '0' && ch != '1' && !ch.is_ascii_uppercase() {
             return Err(format!("Unexpected character '{}'", ch));
         }
 
@@ -56,7 +56,7 @@ fn construct_instruction(tokens: &[TokenVariant], bit_pattern: &BitRunLengthCodi
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::types::register::Register;
+    use super::super::super::types::{register::Register, opcode::Opcode as Opc};
     use super::*;
     use AmbiguousToken::*;
 
@@ -98,6 +98,6 @@ mod tests {
             Some(pattern) => pattern,
         };
 
-        println!("{:#08x}", construct_instruction(&tokens, &pattern.bit_pattern, &pattern.encoding).unwrap());
+        println!("{:#08x}", construct_instruction(&tokens, &pattern.bit_pattern, &pattern.encoding, &HashMap::new()).unwrap());
     }
 }
