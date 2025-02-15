@@ -130,25 +130,18 @@ impl fmt::Display for Opcode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::convert::TryInto;
 
     #[test]
     fn test_try_from_ok() {
-        assert_eq!(Opcode::try_from("nop").unwrap(), Opcode::Nop);
-        assert_eq!(Opcode::try_from("add").unwrap(), Opcode::Add);
-        assert_eq!(Opcode::try_from("dtof").unwrap(), Opcode::DoubleToFloat);
+        assert_eq!(Opcode::from_str("nop"), Ok(Opcode::Nop));
+        assert_eq!(Opcode::from_str("add"), Ok(Opcode::Add));
+        assert_eq!(Opcode::from_str("dtof"), Ok(Opcode::DoubleToFloat));
     }
 
     #[test]
     fn test_try_from_err() {
-        assert!(Opcode::try_from("unknown").is_err());
-        assert!(Opcode::try_from("").is_err());
-    }
-
-    #[test]
-    fn test_try_into() {
-        let opcode: Result<Opcode, _> = "sub".try_into();
-        assert_eq!(opcode.unwrap(), Opcode::Subtract);
+        assert!(Opcode::from_str("unknown").is_err());
+        assert!(Opcode::from_str("").is_err());
     }
 
     #[test]
