@@ -8,7 +8,13 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     dbg!(&args);
 
-    let file_path = &args[1];
+    let file_path = match args.get(1) {
+        None => {
+            println!("No file specified");
+            return;
+        }
+        Some(path) => path,
+    };
 
     let file_content = match std::fs::read_to_string(file_path) {
         Ok(file_content) => file_content,
