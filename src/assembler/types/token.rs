@@ -1,9 +1,9 @@
-use std::ops::Range;
-use std::str::FromStr;
-use crate::assembler::{
+use super::{
     opcode::Opcode,
     register::Register,
 };
+use std::ops::Range;
+use std::str::FromStr;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Token {
@@ -12,7 +12,7 @@ pub struct Token {
     pub range: Range<usize>,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum TokenVariant {
     Opcode(Opcode),
     Label(String),
