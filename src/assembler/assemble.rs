@@ -24,7 +24,7 @@ pub fn assemble(src: String) -> Result<Vec<u32>, String> {
         }
 
         let variants = tokens.iter().map(|token| token.variant.clone()).collect::<Vec<_>>();
-        let ambiguous = variants.iter().map(|variant| variant.try_into().expect("'Unknown' token type :(")).collect::<Vec<_>>();
+        let ambiguous = variants.iter().map(|variant| variant.into()).collect::<Vec<_>>();
 
         let pattern = match grammar::find_matching_pattern(&ambiguous) {
             None => return Err(AssemblyError { line, variant: AssemblyErrorVariant::UnknownTokenPattern }.to_string()),
