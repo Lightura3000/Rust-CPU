@@ -19,7 +19,7 @@ fn nop_patterns() -> Vec<TokenPattern> {
         TokenPattern {
             expected_tokens: vec![Opcode(Opc::Nop)],
             bit_pattern: BitRunLengthCoding::from_str("0000 0000 0000 0000 0000 0000 0000 0000").unwrap(),
-            encoding: Encoding::new(vec![]).unwrap(),
+            encoding: Encoding::new(vec![]),
         },
     ]
 }
@@ -29,17 +29,17 @@ fn add_patterns() -> Vec<TokenPattern> {
         TokenPattern {
             expected_tokens: vec![Opcode(Opc::Add), Register, Register, Register],
             bit_pattern: BitRunLengthCoding::from_str("0001 AAAA BBBB CCCC 0000 0000 0000 0000").unwrap(),
-            encoding: Encoding::new(vec![('A', 1), ('B', 2), ('C', 3)]).unwrap(),
+            encoding: Encoding::new(vec![('A', 1), ('B', 2), ('C', 3)]),
         },
         TokenPattern {
             expected_tokens: vec![Opcode(Opc::Add), Register, Register, Unsigned],
             bit_pattern: BitRunLengthCoding::from_str("0001 AAAA BBBB IIII IIII IIII IIII 0001").unwrap(),
-            encoding: Encoding::new(vec![('A', 1), ('B', 2), ('I', 3)]).unwrap(),
+            encoding: Encoding::new(vec![('A', 1), ('B', 2), ('I', 3)]),
         },
         TokenPattern {
             expected_tokens: vec![Opcode(Opc::Add), Register, Unsigned, Register],
             bit_pattern: BitRunLengthCoding::from_str("0001 AAAA BBBB IIII IIII IIII IIII 0001").unwrap(),
-            encoding: Encoding::new(vec![('A', 1), ('B', 3), ('I', 2)]).unwrap(),
+            encoding: Encoding::new(vec![('A', 1), ('B', 3), ('I', 2)]),
         },
     ]
 }

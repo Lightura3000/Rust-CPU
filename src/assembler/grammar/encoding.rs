@@ -4,11 +4,11 @@ use std::collections::{HashMap, HashSet};
 pub struct Encoding(HashMap<char, usize>);
 
 impl Encoding {
-    pub fn new(encoding: Vec<(char, usize)>) -> Option<Self> {
+    pub fn new(encoding: Vec<(char, usize)>) -> Self {
         let unique_elements = encoding.iter().collect::<HashSet<_>>().len();
 
         if unique_elements != encoding.len() {
-            return None
+            panic!("Duplicate found in: {:?}", encoding);
         }
 
         let mut map = HashMap::with_capacity(encoding.len());
@@ -17,7 +17,7 @@ impl Encoding {
             map.insert(c, n);
         }
 
-        Some(Encoding(map))
+        Encoding(map)
     }
 
     pub fn get(&self, c: char) -> Option<&usize> {
