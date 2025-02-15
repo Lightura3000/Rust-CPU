@@ -6,7 +6,6 @@ use cpu::CPU;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    dbg!(&args);
 
     let file_path = match args.get(1) {
         None => {
