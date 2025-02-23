@@ -1,4 +1,4 @@
-pub mod assemble;
+pub mod construct_instruction;
 mod bit_run_length_coding;
 pub mod token_pattern;
 mod bit_push;

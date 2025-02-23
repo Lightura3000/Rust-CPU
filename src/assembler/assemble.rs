@@ -1,7 +1,7 @@
 use super::{
     assembly_error::{AssemblyError, AssemblyErrorVariant},
     grammar::token_pattern::AmbiguousToken,
-    grammar::assemble::{find_matching_pattern, construct_instruction},
+    grammar::construct_instruction::{find_matching_pattern, construct_instruction},
     types::token::{Token, TokenVariant::*},
     tokenization::tokenize::tokenize,
 };
