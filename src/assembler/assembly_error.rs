@@ -1,10 +1,12 @@
 use std::fmt::Display;
 
+#[derive(Debug)]
 pub struct AssemblyError {
     pub line: usize,
     pub variant: AssemblyErrorVariant
 }
 
+#[derive(Debug)]
 pub enum AssemblyErrorVariant {
     ImmediateTooLarge { max: u16, got: u16 },
     NoLabelFound { name: String },
