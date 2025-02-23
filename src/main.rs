@@ -2,7 +2,7 @@ mod cpu;
 mod assembler;
 
 use assembler::assemble::assemble;
-use cpu::CPU;
+use cpu::Cpu;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -34,7 +34,7 @@ fn main() {
     println!("Assembled into {} instructions:", instructions.len());
     instructions.iter().enumerate().for_each(|(i, instruction)| println!("{}. {:#010x}", i + 1,  instruction));
 
-    let mut cpu = CPU::default();
+    let mut cpu = Cpu::default();
 
     load_program(&mut cpu, &instructions);
 
@@ -45,7 +45,7 @@ fn main() {
     println!("Registers after execution: {:?}", cpu.regs);
 }
 
-fn load_program(cpu: &mut CPU, program: &[u32]) {
+fn load_program(cpu: &mut Cpu, program: &[u32]) {
     let mut mem = 0;
 
     // Ensure the program fits into memory

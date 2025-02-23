@@ -1,10 +1,10 @@
 use std::{cmp::Ordering, fmt::Display};
 
-type InstrFn = fn(&mut CPU, u32);
+type InstrFn = fn(&mut Cpu, u32);
 const INSTR_PTR: usize = 15;
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct CPU {
+pub struct Cpu {
     pub regs: [u64; 16],
     pub memory: Vec<u8>,
     pub privileged: bool,
@@ -63,7 +63,7 @@ pub struct Flags {
     smaller: bool,
 }
 
-impl Default for CPU {
+impl Default for Cpu {
     fn default() -> Self {
         Self {
             regs: [0; 16],
@@ -74,7 +74,7 @@ impl Default for CPU {
     }
 }
 
-impl CPU {
+impl Cpu {
     pub fn run(&mut self, cycles: u64) {
         for _ in 0..cycles {
             let address = self.regs[INSTR_PTR] as usize;
@@ -91,15 +91,15 @@ impl CPU {
         // Using a lookup table for opcodes instead of a match is probably faster
         const INSTRUCTION_TABLE: [InstrFn; 10] = [
             |_, _| { }, // nop
-            CPU::execute_arithmetic_operations,
-            CPU::execute_bitwise_operations,
-            CPU::execute_shift_and_rotate,
-            CPU::execute_data_movement_memory_stack,
-            CPU::execute_comparison,
-            CPU::execute_branching,
-            CPU::execute_conversion,
-            CPU::execute_floating,
-            CPU::execute_double,
+            Cpu::execute_arithmetic_operations,
+            Cpu::execute_bitwise_operations,
+            Cpu::execute_shift_and_rotate,
+            Cpu::execute_data_movement_memory_stack,
+            Cpu::execute_comparison,
+            Cpu::execute_branching,
+            Cpu::execute_conversion,
+            Cpu::execute_floating,
+            Cpu::execute_double,
         ];
 
         const OPCODE_MASK: u32 = 0xF0000000;
@@ -120,7 +120,7 @@ impl CPU {
 
     fn execute_arithmetic_operations(&mut self, instruction: u32) {
         // Type for an arithmetic function: (self, dest, lhs, rhs)
-        type ArithmeticOperationFn = fn(&mut CPU, usize, u64, u64);
+        type ArithmeticOperationFn = fn(&mut Cpu, usize, u64, u64);
 
         const OPERATION_MASK: u32 = 0x0000_000F;
         const DEST_REG_MASK: u32  = 0x0F00_0000;
@@ -276,14 +276,14 @@ impl CPU {
         let reg1 = self.regs[reg1];
         let reg2 = self.regs[reg2];
 
-        fn compare<T: Ord>(cpu: &mut CPU, a: T, b: T) {
+        fn compare<T: Ord>(cpu: &mut Cpu, a: T, b: T) {
             let cmp = a.cmp(&b);
             cpu.flags.greater = cmp == Ordering::Greater;
             cpu.flags.equal = cmp == Ordering::Equal;
             cpu.flags.smaller = cmp == Ordering::Less;
         }
 
-        fn partial_compare<T: PartialOrd>(cpu: &mut CPU, a: T, b: T) {
+        fn partial_compare<T: PartialOrd>(cpu: &mut Cpu, a: T, b: T) {
             match a.partial_cmp(&b) {
                 None => {
                     cpu.flags.greater = false;
@@ -322,14 +322,14 @@ impl CPU {
 
         let reg_offset = self.regs[branch_amount];
 
-        fn branch_u16(cpu: &mut CPU, condition: bool, offset: u16) {
+        fn branch_u16(cpu: &mut Cpu, condition: bool, offset: u16) {
             if condition {
                 let current_ip = cpu.regs[INSTR_PTR] as i64;
                 cpu.regs[INSTR_PTR] = (offset as i16 as i64 * 4 + current_ip) as u64;
             }
         }
 
-        fn branch_u64(cpu: &mut CPU, condition: bool, offset: u64) {
+        fn branch_u64(cpu: &mut Cpu, condition: bool, offset: u64) {
             if condition {
                 let current_ip = cpu.regs[INSTR_PTR] as i64;
                 cpu.regs[INSTR_PTR] = (offset as i64 * 4 + current_ip) as u64;
@@ -645,7 +645,7 @@ mod tests {
     fn stress_test() {
         let iterations = 10_000_000;
 
-        let mut cpu = CPU::default();
+        let mut cpu = Cpu::default();
         let fill = iterations.to_string().len();
 
         for i in 0..iterations {
