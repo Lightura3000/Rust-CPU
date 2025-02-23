@@ -88,32 +88,32 @@ impl Cpu {
     }
 
     pub fn exec(&mut self, instruction: u32) {
+        const BRANCHING_OPCODE_IDX: usize = 6;
+
         // Using a lookup table for opcodes instead of a match is probably faster
         const INSTRUCTION_TABLE: [InstrFn; 10] = [
-            |_, _| { }, // nop
-            Cpu::execute_arithmetic_operations,
-            Cpu::execute_bitwise_operations,
-            Cpu::execute_shift_and_rotate,
-            Cpu::execute_data_movement_memory_stack,
-            Cpu::execute_comparison,
-            Cpu::execute_branching,
-            Cpu::execute_conversion,
-            Cpu::execute_floating,
-            Cpu::execute_double,
+            /* 0 */ |_, _| { }, // nop
+            /* 1 */ Cpu::execute_arithmetic_operations,
+            /* 2 */ Cpu::execute_bitwise_operations,
+            /* 3 */ Cpu::execute_shift_and_rotate,
+            /* 4 */ Cpu::execute_data_movement_memory_stack,
+            /* 5 */ Cpu::execute_comparison,
+            /* 6 */ Cpu::execute_branching, // IMPORTANT: update BRANCHING_OPCODE_IDX if needed
+            /* 7 */ Cpu::execute_conversion,
+            /* 8 */ Cpu::execute_floating,
+            /* 9 */ Cpu::execute_double,
         ];
 
         const OPCODE_MASK: u32 = 0xF0000000;
 
         let opcode = ((instruction & OPCODE_MASK) >> OPCODE_MASK.trailing_zeros()) as usize;
 
-        let prev_instr_ptr = self.regs[INSTR_PTR];
-
         match INSTRUCTION_TABLE.get(opcode) {
             None => Self::complain(format!("Invalid instruction: {:#010x}", instruction)),
             Some(function) => function(self, instruction),
         }
 
-        if self.regs[INSTR_PTR] == prev_instr_ptr {
+        if opcode != BRANCHING_OPCODE_IDX {
             self.regs[INSTR_PTR] += 4;
         }
     }
