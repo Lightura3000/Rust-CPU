@@ -45,9 +45,9 @@ impl From<&TokenVariant> for AmbiguousToken {
     }
 }
 
-impl Into<AmbiguousToken> for TokenVariant {
-    fn into(self) -> AmbiguousToken {
-        match self {
+impl From<TokenVariant> for AmbiguousToken {
+    fn from(val: TokenVariant) -> Self {
+        match val {
             TokenVariant::Opcode(opc) => AmbiguousToken::Opcode(opc),
             TokenVariant::Label(_) => AmbiguousToken::Label,
             TokenVariant::Unsigned(_) => AmbiguousToken::Unsigned,
