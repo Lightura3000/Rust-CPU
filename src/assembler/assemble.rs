@@ -10,7 +10,7 @@ use std::collections::HashMap;
 pub fn assemble(src: &str) -> Result<Vec<u32>, AssemblyError> {
     let mut instructions = Vec::new();
 
-    let token_lines = tokenize(&src)?;
+    let token_lines = tokenize(src)?;
 
     let (token_lines, labels) = extract_labels(token_lines);
 
@@ -22,7 +22,7 @@ pub fn assemble(src: &str) -> Result<Vec<u32>, AssemblyError> {
             Some(pattern) => pattern,
         };
 
-        let constructed_instruction = construct_instruction(&tokens, &pattern.bit_pattern, &pattern.encoding, &labels, instruction)?;
+        let constructed_instruction = construct_instruction(tokens, &pattern.bit_pattern, &pattern.encoding, &labels, instruction)?;
         instructions.push(constructed_instruction);
     }
 
@@ -47,7 +47,7 @@ fn extract_labels(token_lines: Vec<Vec<Token>>) -> (Vec<Vec<Token>>, HashMap<Str
     (line_tokens, labels)
 }
 
-fn make_tokens_ambiguous(tokens: &Vec<Token>) -> Vec<AmbiguousToken> {
+fn make_tokens_ambiguous(tokens: &[Token]) -> Vec<AmbiguousToken> {
     let mut ambiguous_tokens = Vec::with_capacity(tokens.len());
     tokens.iter().for_each(|token| ambiguous_tokens.push(AmbiguousToken::from(&token.variant)));
     ambiguous_tokens
