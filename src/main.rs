@@ -23,7 +23,7 @@ fn main() {
         }
     };
 
-    let instructions = match assemble(file_content) {
+    let instructions = match assemble(&file_content) {
         Ok(instructions) => instructions,
         Err(err_msg) => {
             println!("{}", err_msg);

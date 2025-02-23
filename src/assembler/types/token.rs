@@ -2,14 +2,14 @@ use super::{
     opcode::Opcode,
     register::Register,
 };
-use std::ops::Range;
+//use std::ops::Range;
 use std::str::FromStr;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Token {
     pub line: usize,
     pub variant: TokenVariant,
-    pub range: Range<usize>,
+//    pub range: Range<usize>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
