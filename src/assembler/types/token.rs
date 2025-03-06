@@ -17,16 +17,31 @@ impl TryFrom<RawToken> for Token {
 
     fn try_from(token: RawToken) -> Result<Self, Self::Error> {
         let variant = match token.variant {
-            RawTokenVariant::Text(text) => {
-                match Opcode::from_str(&text) {
+            RawTokenVariant::Text => {
+                match Opcode::from_str(&token.value) {
                     Ok(opc) => TokenVariant::Opcode(opc),
                     Err(_) => return Err(()),
                 }
             }
-            RawTokenVariant::Unsigned(unsigned) => TokenVariant::Unsigned(unsigned),
-            RawTokenVariant::Signed(signed) => TokenVariant::Signed(signed),
-            RawTokenVariant::Label(name) => TokenVariant::Label(name),
-            RawTokenVariant::Register(register) => TokenVariant::Register(register),
+            RawTokenVariant::Unsigned => {
+                match token.value.parse::<u16>() {
+                    Ok(unsigned) => TokenVariant::Unsigned(unsigned),
+                    Err(_) => return Err(()),
+                }
+            }
+            RawTokenVariant::Signed => {
+                match token.value.parse::<i16>() {
+                    Ok(signed) => TokenVariant::Signed(signed),
+                    Err(_) => return Err(()),
+                }
+            }
+            RawTokenVariant::Label => TokenVariant::Label(token.value.to_owned()),
+            RawTokenVariant::Register => {
+                match Register::from_str(&token.value) {
+                    Ok(reg) => TokenVariant::Register(reg),
+                    Err(_) => return Err(()),
+                }
+            }
         };
 
         Ok(Token {
@@ -70,15 +85,16 @@ impl FromStr for TokenVariant {
 
 #[derive(Debug, PartialEq)]
 pub enum RawTokenVariant {
-    Text(String),
-    Unsigned(u16),
-    Signed(i16),
-    Label(String),
-    Register(Register),
+    Text,
+    Unsigned,
+    Signed,
+    Label,
+    Register,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct RawToken {
     pub variant: RawTokenVariant,
+    pub value: String,
     pub line: usize,
 }
