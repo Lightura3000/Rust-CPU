@@ -40,7 +40,7 @@ fn main() {
 
     cpu.set_instruction_ptr(0);
 
-    cpu.run(20);
+    cpu.run(100);
 
     println!("Registers after execution: {:?}", cpu.regs);
 }
