@@ -21,7 +21,7 @@ pub enum Register {
 }
 
 impl FromStr for Register {
-    type Err = String;
+    type Err = ();
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         if let Some('r') = value.chars().next() {
@@ -43,13 +43,13 @@ impl FromStr for Register {
                     13 => Ok(Register::R13),
                     14 => Ok(Register::R14),
                     15 => Ok(Register::R15),
-                    _ => Err(format!("Unknown register: '{}'", value)),
+                    _ => Err(()),
                 }
             } else {
-                Err(format!("Failed to parse register number: '{}'", value))
+                Err(())
             }
         } else {
-            Err(format!("Register must start with 'r': '{}'", value))
+            Err(())
         }
     }
 }
