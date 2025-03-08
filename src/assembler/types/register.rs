@@ -20,13 +20,10 @@ pub enum Register {
     R15 = 15,
 }
 
-/// ```
-/// let reg = Register::try_from("r5").unwrap();
-/// ```
-impl TryFrom<&str> for Register {
-    type Error = String;
+impl FromStr for Register {
+    type Err = String;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         if let Some('r') = value.chars().next() {
             if let Ok(r) = value[1..].parse::<u8>() {
                 match r {
@@ -57,45 +54,33 @@ impl TryFrom<&str> for Register {
     }
 }
 
-/// ```
-/// use std::str::FromStr;
-/// let reg = "r10".parse::<Register>().unwrap();
-/// ```
-impl FromStr for Register {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Register::try_from(s)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_try_into_register() {
-        assert!(TryInto::<Register>::try_into("r0").is_ok());
-        assert!(TryInto::<Register>::try_into("r1").is_ok());
-        assert!(TryInto::<Register>::try_into("r2").is_ok());
-        assert!(TryInto::<Register>::try_into("r3").is_ok());
-        assert!(TryInto::<Register>::try_into("r4").is_ok());
-        assert!(TryInto::<Register>::try_into("r5").is_ok());
-        assert!(TryInto::<Register>::try_into("r6").is_ok());
-        assert!(TryInto::<Register>::try_into("r7").is_ok());
-        assert!(TryInto::<Register>::try_into("r8").is_ok());
-        assert!(TryInto::<Register>::try_into("r9").is_ok());
-        assert!(TryInto::<Register>::try_into("r10").is_ok());
-        assert!(TryInto::<Register>::try_into("r11").is_ok());
-        assert!(TryInto::<Register>::try_into("r12").is_ok());
-        assert!(TryInto::<Register>::try_into("r13").is_ok());
-        assert!(TryInto::<Register>::try_into("r14").is_ok());
-        assert!(TryInto::<Register>::try_into("r15").is_ok());
+        assert_eq!(Register::from_str("r0"), Ok(Register::R0));
+        assert_eq!(Register::from_str("r1"), Ok(Register::R1));
+        assert_eq!(Register::from_str("r2"), Ok(Register::R2));
+        assert_eq!(Register::from_str("r3"), Ok(Register::R3));
+        assert_eq!(Register::from_str("r4"), Ok(Register::R4));
+        assert_eq!(Register::from_str("r5"), Ok(Register::R5));
+        assert_eq!(Register::from_str("r6"), Ok(Register::R6));
+        assert_eq!(Register::from_str("r7"), Ok(Register::R7));
+        assert_eq!(Register::from_str("r8"), Ok(Register::R8));
+        assert_eq!(Register::from_str("r9"), Ok(Register::R9));
+        assert_eq!(Register::from_str("r10"), Ok(Register::R10));
+        assert_eq!(Register::from_str("r11"), Ok(Register::R11));
+        assert_eq!(Register::from_str("r12"), Ok(Register::R12));
+        assert_eq!(Register::from_str("r13"), Ok(Register::R13));
+        assert_eq!(Register::from_str("r14"), Ok(Register::R14));
+        assert_eq!(Register::from_str("r15"), Ok(Register::R15));
 
-        assert!(TryInto::<Register>::try_into("13").is_err());
-        assert!(TryInto::<Register>::try_into("rtv").is_err());
-        assert!(TryInto::<Register>::try_into("").is_err());
-        assert!(TryInto::<Register>::try_into("0").is_err());
-        assert!(TryInto::<Register>::try_into("r").is_err());
+        assert!(Register::from_str("13").is_err());
+        assert!(Register::from_str("rtv").is_err());
+        assert!(Register::from_str("").is_err());
+        assert!(Register::from_str("0").is_err());
+        assert!(Register::from_str("r").is_err());
     }
 }
