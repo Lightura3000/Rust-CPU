@@ -1,13 +1,12 @@
-use super::{
-    bit_push::BitPush,
-    bit_run_length_coding::BitRunLengthCoding,
-    get_patterns::get_patterns,
-    token_pattern::{AmbiguousToken, TokenPattern},
-};
 use crate::assembler::{
-    assembly_error::{AssemblyError, AssemblyErrorVariant},
+    grammar::bit_push::BitPush,
+    grammar::bit_run_length_coding::BitRunLengthCoding,
+    grammar::get_patterns::get_patterns,
+    grammar::token_pattern::AmbiguousToken,
+    grammar::token_pattern::TokenPattern,
     grammar::encoding::Encoding,
-    types::token::{Token, TokenVariant}
+    assembly_error::{AssemblyError, AssemblyErrorVariant},
+    tokenization::token::{Token, TokenVariant},
 };
 use std::collections::HashMap;
 
