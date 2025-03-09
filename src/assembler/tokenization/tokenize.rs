@@ -42,8 +42,8 @@ impl Tokenizer {
 
             match self.get_next_token() {
                 Ok(token) => {
-                    println!("Constructed token: {:?}", token);
-                    println!();
+                    // println!("Constructed token: {:?}", token);
+                    // println!();
 
                     for ch in token.value.chars() {
                         // advance
@@ -118,19 +118,19 @@ impl Tokenizer {
 
             let ch = self.input[position.pos];
 
-            print!("Gave '{}' to {:?} ---- ", ch, provider);
+            // print!("Gave '{}' to {:?} ---- ", ch, provider);
             let response = provider.give(ch);
 
             match response {
                 ProviderResponse::Accepted => {
-                    println!("Provider accepted");
+                    // println!("Provider accepted");
                 }
                 ProviderResponse::TokenFinished(variant, value) => {
-                    println!("variant: '{:?}' value: '{}'", variant, value);
+                    // println!("variant: '{:?}' value: '{}'", variant, value);
                     return Some((variant, value))
                 }
                 ProviderResponse::Destroyed => {
-                    println!("Provider destroyed");
+                    // println!("Provider destroyed");
                     return None
                 }
             }
