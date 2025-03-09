@@ -1,3 +1,4 @@
+use crate::assembler::tokenization::tokenization_error::TokenizationError;
 use std::fmt::Display;
 
 #[derive(Debug)]

@@ -1,7 +1,7 @@
 mod cpu;
 mod assembler;
 
-use assembler::assemble::assemble;
+use assembler::assemble::assemble_new;
 use cpu::Cpu;
 
 fn main() {
@@ -23,7 +23,7 @@ fn main() {
         }
     };
 
-    let instructions = match assemble(&file_content) {
+    let instructions = match assemble_new(file_content) {
         Ok(instructions) => instructions,
         Err(err_msg) => {
             println!("{}", err_msg);

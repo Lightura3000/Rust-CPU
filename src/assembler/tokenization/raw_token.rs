@@ -1,10 +1,10 @@
-use std::str::FromStr;
-use crate::assembler::types::{
-    token::{Token, TokenVariant},
-    register::Register,
-    opcode::Opcode,
-    token_error::{TokenizationError, TokenizationErrorVariant}
+use crate::assembler::{
+    types::opcode::Opcode,
+    types::register::Register,
+    tokenization::token::{Token, TokenVariant},
+    tokenization::tokenization_error::{TokenizationError, TokenizationErrorVariant},
 };
+use std::str::FromStr;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum RawTokenVariant {
@@ -20,6 +20,7 @@ pub struct RawToken {
     pub variant: RawTokenVariant,
     pub value: String,
     pub line: usize,
+    pub column: usize,
 }
 
 impl TryFrom<RawToken> for Token {
@@ -32,7 +33,7 @@ impl TryFrom<RawToken> for Token {
                     Ok(opc) => TokenVariant::Opcode(opc),
                     Err(_) => return Err(TokenizationError {
                         line: token.line,
-                        position: None,
+                        position: token.column,
                         variant: TokenizationErrorVariant::OpcodeNotRecognised,
                     }),
                 }
@@ -42,7 +43,7 @@ impl TryFrom<RawToken> for Token {
                     Ok(unsigned) => TokenVariant::Unsigned(unsigned),
                     Err(error) => return Err(TokenizationError {
                         line: token.line,
-                        position: None,
+                        position: token.column,
                         variant: TokenizationErrorVariant::ParseIntError(error),
                     })
                 }
@@ -52,7 +53,7 @@ impl TryFrom<RawToken> for Token {
                     Ok(signed) => TokenVariant::Signed(signed),
                     Err(error) => return Err(TokenizationError {
                         line: token.line,
-                        position: None,
+                        position: token.column,
                         variant: TokenizationErrorVariant::ParseIntError(error),
                     }),
                 }
@@ -61,10 +62,10 @@ impl TryFrom<RawToken> for Token {
             RawTokenVariant::Register => {
                 match Register::from_str(&token.value) {
                     Ok(reg) => TokenVariant::Register(reg),
-                    Err(error) => return Err(TokenizationError {
+                    Err(_) => return Err(TokenizationError {
                         line: token.line,
-                        position: None,
-                        variant: TokenizationErrorVariant::StringError(error),
+                        position: token.column,
+                        variant: TokenizationErrorVariant::ParseRegisterError,
                     }),
                 }
             }

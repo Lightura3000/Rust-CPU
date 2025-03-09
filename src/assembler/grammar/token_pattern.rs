@@ -1,7 +1,7 @@
 use super::encoding::Encoding;
 use super::bit_run_length_coding::BitRunLengthCoding;
 use crate::assembler::types::opcode::Opcode;
-use crate::assembler::types::token::TokenVariant;
+use crate::assembler::tokenization::token::TokenVariant;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct TokenPattern {
