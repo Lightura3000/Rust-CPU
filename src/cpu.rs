@@ -9,6 +9,7 @@ pub struct Cpu {
     pub memory: Vec<u8>,
     pub privileged: bool,
     pub flags: Flags,
+    next_instr_ptr: Option<u64>,
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -70,6 +71,7 @@ impl Default for Cpu {
             memory: vec![0; 4096],
             privileged: true,
             flags: Flags::default(),
+            next_instr_ptr: None,
         }
     }
 }
@@ -88,7 +90,7 @@ impl Cpu {
     }
 
     pub fn exec(&mut self, instruction: u32) {
-        const BRANCHING_OPCODE_IDX: usize = 6;
+        self.next_instr_ptr = None;
 
         // Using a lookup table for opcodes instead of a match is probably faster
         const INSTRUCTION_TABLE: [InstrFn; 10] = [
@@ -98,7 +100,7 @@ impl Cpu {
             /* 3 */ Cpu::execute_shift_and_rotate,
             /* 4 */ Cpu::execute_data_movement_memory_stack,
             /* 5 */ Cpu::execute_comparison,
-            /* 6 */ Cpu::execute_branching, // IMPORTANT: update BRANCHING_OPCODE_IDX if needed
+            /* 6 */ Cpu::execute_branching,
             /* 7 */ Cpu::execute_conversion,
             /* 8 */ Cpu::execute_floating,
             /* 9 */ Cpu::execute_double,
@@ -113,7 +115,9 @@ impl Cpu {
             Some(function) => function(self, instruction),
         }
 
-        if opcode != BRANCHING_OPCODE_IDX {
+        if let Some(next_instr_ptr) = self.next_instr_ptr {
+            self.regs[INSTR_PTR] = next_instr_ptr;
+        } else {
             self.regs[INSTR_PTR] += 4;
         }
     }
@@ -325,14 +329,14 @@ impl Cpu {
         fn branch_u16(cpu: &mut Cpu, condition: bool, offset: u16) {
             if condition {
                 let current_ip = cpu.regs[INSTR_PTR] as i64;
-                cpu.regs[INSTR_PTR] = (offset as i16 as i64 * 4 + current_ip) as u64;
+                cpu.next_instr_ptr = Some((offset as i16 as i64 * 4 + current_ip) as u64);
             }
         }
 
         fn branch_u64(cpu: &mut Cpu, condition: bool, offset: u64) {
             if condition {
                 let current_ip = cpu.regs[INSTR_PTR] as i64;
-                cpu.regs[INSTR_PTR] = (offset as i64 * 4 + current_ip) as u64;
+                cpu.next_instr_ptr = Some((offset as i64 * 4 + current_ip) as u64);
             }
         }
 
