@@ -46,15 +46,18 @@ pub fn construct_instruction(tokens: &[Token], bit_pattern: &BitRunLengthCoding,
             TokenVariant::Opcode(opc) => panic!("Opcodes can't be assembled (opcode: '{:?}')", opc),
             TokenVariant::Label(name) => {
                 let label_i = match labels.get(name.as_str()) {
-                    None => return Err(AssemblyError { line: instruction, variant: AssemblyErrorVariant::NoLabelFound { name: name.to_string() }}),
+                    None => return Err(AssemblyError {
+                        line: instruction,
+                        column: None,
+                        variant: AssemblyErrorVariant::NoLabelFound { name: name.to_string() }}),
                     Some(i) => *i as u32 as i32,
                 };
 
                 let offset = label_i - instruction as i32;
 
                 let offset = match offset {
-                    o if o < i16::MIN as i32 => return Err(AssemblyError { line: instruction, variant: AssemblyErrorVariant::OffsetTooLarge { limit: i16::MIN as i32, required: o as i64 } }),
-                    o if o > i16::MAX as i32 => return Err(AssemblyError { line: instruction, variant: AssemblyErrorVariant::OffsetTooLarge { limit: i16::MAX as i32, required: o as i64 } }),
+                    o if o < i16::MIN as i32 => return Err(AssemblyError { line: instruction, column: None, variant: AssemblyErrorVariant::OffsetTooLarge { limit: i16::MIN as i32, required: o as i64 } }),
+                    o if o > i16::MAX as i32 => return Err(AssemblyError { line: instruction, column: None, variant: AssemblyErrorVariant::OffsetTooLarge { limit: i16::MAX as i32, required: o as i64 } }),
                     _ => offset as u16,
                 };
 
