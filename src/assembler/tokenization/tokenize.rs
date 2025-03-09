@@ -1,220 +1,161 @@
-use std::str::FromStr;
-use crate::assembler::{
-    assembly_error::AssemblyError,
-    assembly_error::AssemblyErrorVariant,
-};
+use crate::assembler::tokenization::providers::provider::{TokenProvider, ProviderResponse};
+use crate::assembler::tokenization::providers::provider_labels::LabelProvider;
+use crate::assembler::tokenization::providers::provider_opcodes::OpcodeProvider;
+use crate::assembler::tokenization::providers::provider_registers::RegisterProvider;
+use crate::assembler::tokenization::providers::provider_unsigned::UnsignedProvider;
 use crate::assembler::tokenization::raw_token::{RawToken, RawTokenVariant};
-use crate::assembler::tokenization::token::{Token, TokenVariant};
 use crate::assembler::tokenization::tokenization_error::{TokenizationError, TokenizationErrorVariant};
 
-pub fn tokenize(src: &str) -> Result<Vec<Vec<Token>>, AssemblyError> {
-    let mut tokens = Vec::new();
-
-    for (line, content) in src.lines().enumerate() {
-        let mut line_tokens = Vec::new();
-
-        for (param_index, split) in content.split_whitespace().enumerate() {
-            let variant = match TokenVariant::from_str(split) {
-                Ok(variant) => variant,
-                Err(_) => return Err(AssemblyError {
-                    line,
-                    column: None,
-                    variant: AssemblyErrorVariant::UnrecognizableParam { param_index },
-                }),
-            };
-
-            line_tokens.push(Token {
-                line,
-                variant,
-                // range: index..(index + split.len()),
-            });
-        }
-
-        if !line_tokens.is_empty() {
-            tokens.push(line_tokens);
-        }
-    }
-
-    Ok(tokens)
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+struct Position {
+    pos: usize,
+    line: usize,
+    column: usize,
 }
 
 pub struct Tokenizer {
     input: Vec<char>,
-    position: usize,
-    line: usize,
-    line_position: usize,
+    position: Position,
 }
 
 impl Tokenizer {
     pub fn new(input: String) -> Self {
-        Tokenizer {
+        Self {
             input: input.chars().collect(),
-            position: 0,
-            line: 0,
-            line_position: 0,
+            position: Position {
+                pos: 0,
+                line: 0,
+                column: 0,
+            }
         }
     }
 
-    pub fn tokenize(mut self) -> Result<Vec<RawToken>, TokenizationError> {
+    pub fn tokenize(&mut self) -> Result<Vec<RawToken>, TokenizationError> {
         let mut tokens = Vec::new();
 
         loop {
-            let next_token = self.get_next_token()?;
-            dbg!(&next_token);
-            tokens.push(next_token);
-
             self.skip_whitespace();
-            if self.position >= self.input.len() {
+
+            if self.position.pos >= self.input.len() {
                 break;
+            }
+
+            match self.get_next_token() {
+                Ok(token) => {
+                    println!("Constructed token: {:?}", token);
+                    println!();
+
+                    for ch in token.value.chars() {
+                        // advance
+                        if ch == '\n' {
+                            self.position.line += 1;
+                            self.position.column = 0;
+                        } else {
+                            self.position.column += 1;
+                        }
+                        self.position.pos += 1;
+                    }
+
+                    tokens.push(token);
+                }
+                Err(variant) => return Err(TokenizationError {
+                    line: self.position.line,
+                    column: self.position.column,
+                    variant,
+                }),
             }
         }
 
         Ok(tokens)
     }
 
-    fn advance(&mut self) {
-        if self.input[self.position] == '\n' {
-            self.line += 1;
-            self.line_position = 0;
+    fn get_next_token(&mut self) -> Result<RawToken, TokenizationErrorVariant> {
+        // Skip until we have a character
+        self.skip_whitespace();
+        if self.position.pos >= self.input.len() {
+            panic!("Reached end of input while parsing input");
         }
 
-        self.position += 1;
-        self.line_position += 1;
+        // Establish all providers we want to use
+        let providers: Vec<Box<dyn TokenProvider>> = vec![
+            Box::from(OpcodeProvider::new()),
+            Box::from(UnsignedProvider::new()),
+            Box::from(LabelProvider::new()),
+            Box::from(RegisterProvider::new()),
+        ];
+        let mut provider_results = Vec::with_capacity(1);
+
+        // Try each provider
+        for provider in providers {
+            if let Some(result) = self.simulate_provider(provider, self.position) {
+                provider_results.push(result);
+            }
+        }
+
+        // Check if there is exactly one provider that gave back a token
+        if provider_results.is_empty() {
+            Err(TokenizationErrorVariant::NoProviderFinished)
+        } else if provider_results.len() == 1 {
+            let (variant, value) = provider_results.pop().unwrap();
+            Ok(RawToken {
+                variant,
+                value,
+                line: self.position.line,
+                column: self.position.column,
+            })
+        } else {
+            Err(TokenizationErrorVariant::MultipleProvidersFinished)
+        }
+    }
+
+    fn simulate_provider(&mut self, mut provider: Box<dyn TokenProvider>, position: Position) -> Option<(RawTokenVariant, String)> {
+        let mut position = position;
+
+        loop {
+            if position.pos >= self.input.len() {
+                return provider.request_end();
+            }
+
+            let ch = self.input[position.pos];
+
+            print!("Gave '{}' to {:?} ---- ", ch, provider);
+            let response = provider.give(ch);
+
+            match response {
+                ProviderResponse::Accepted => {
+                    println!("Provider accepted");
+                }
+                ProviderResponse::TokenFinished(variant, value) => {
+                    println!("variant: '{:?}' value: '{}'", variant, value);
+                    return Some((variant, value))
+                }
+                ProviderResponse::Destroyed => {
+                    println!("Provider destroyed");
+                    return None
+                }
+            }
+
+            // advance
+            if let Some('\n') = self.input.get(position.pos) {
+                position.line += 1;
+                position.column = 0;
+            } else {
+                position.column += 1;
+            }
+
+            position.pos += 1;
+        }
     }
 
     fn skip_whitespace(&mut self) {
-        loop {
-            let char = self.input.get(self.position);
-
-            match char {
-                Some(c) if c.is_whitespace() => self.advance(),
-                _ => break,
-            }
-        }
-    }
-
-    fn get_next_token(&mut self) -> Result<RawToken, TokenizationError> {
-
-        // This part should be done even before calling the function
-        // and handle the end of input in some way
-        self.skip_whitespace();
-        if self.position >= self.input.len() {
-            panic!("Reached end unexpectantly")
-        }
-        //////////////
-
-        let current_char = self.input[self.position];
-
-        match current_char {
-            'r' => {
-                let start_line_pos = self.line_position;
-                self.advance();
-                Ok(RawToken {
-                    variant: RawTokenVariant::Register,
-                    value: "r".to_string() + &self.collect_unsigned()?.value,
-                    line: self.line,
-                    column: start_line_pos,
-                })
-            }
-            '.' => {
-                let start_line_pos = self.line_position;
-                self.advance();
-                Ok(RawToken {
-                    variant: RawTokenVariant::Label,
-                    value: ".".to_string() + &self.collect_text()?.value,
-                    line: self.line,
-                    column: start_line_pos,
-                })
-            }
-            '-' => {
-                let start_line_pos = self.line_position;
-                self.advance();
-                Ok(RawToken {
-                    variant: RawTokenVariant::Signed,
-                    value: "-".to_string() + &self.collect_unsigned()?.value,
-                    line: self.line,
-                    column: start_line_pos,
-                })
-            }
-            c if c.is_alphabetic() => Ok(self.collect_text()?),
-            c if c.is_numeric() => Ok(self.collect_unsigned()?),
-            c => Err(TokenizationError {
-                line: self.line,
-                position: self.position,
-                variant: TokenizationErrorVariant::InvalidCharacter(c),
-            }),
-        }
-    }
-
-    fn collect_text(&mut self) -> Result<RawToken, TokenizationError> {
-        let start_pos = self.position;
-        let start_line_pos = self.line_position;
-
-        let mut value = String::new();
-
-        loop {
-            if self.position >= self.input.len() {
-                break;
-            }
-
-            let c = self.input[self.position];
-
-            if c.is_alphabetic() {
-                value.push(c);
-            } else if c.is_whitespace() {
-                break;
+        while self.position.pos < self.input.len() && self.input[self.position.pos].is_whitespace() {
+            if self.input[self.position.pos] == '\n' {
+                self.position.line += 1;
+                self.position.column = 0;
             } else {
-                return Err(TokenizationError {
-                    line: self.line,
-                    position: self.position,
-                    variant: TokenizationErrorVariant::InvalidCharacter(c),
-                });
+                self.position.column += 1;
             }
-
-            self.advance();
-        };
-
-        Ok(RawToken {
-            variant: RawTokenVariant::Text,
-            value: self.input[start_pos..self.position].iter().collect(),
-            line: self.line,
-            column: start_line_pos,
-        })
-    }
-
-    fn collect_unsigned(&mut self) -> Result<RawToken, TokenizationError> {
-        let start_pos = self.position;
-        let start_line_pos = self.line_position;
-
-        let mut value = String::new();
-
-        loop {
-            if self.position >= self.input.len() {
-                break;
-            }
-
-            let c = self.input[self.position];
-
-            if c.is_numeric() {
-                value.push(c);
-            } else if c.is_whitespace() {
-                break;
-            } else {
-                return Err(TokenizationError {
-                    line: self.line,
-                    position: self.position,
-                    variant: TokenizationErrorVariant::InvalidCharacter(c),
-                });
-            }
-
-            self.position += 1;
-        };
-
-        Ok(RawToken {
-            variant: RawTokenVariant::Unsigned,
-            value: self.input[start_pos..self.position].iter().collect(),
-            line: self.line,
-            column: start_line_pos,
-        })
+            self.position.pos += 1;
+        }
     }
 }

@@ -8,7 +8,7 @@ use std::str::FromStr;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum RawTokenVariant {
-    Text,
+    Opcode,
     Unsigned,
     Signed,
     Label,
@@ -23,17 +23,23 @@ pub struct RawToken {
     pub column: usize,
 }
 
+impl RawToken {
+    pub fn len(&self) -> usize {
+        self.value.len()
+    }
+}
+
 impl TryFrom<RawToken> for Token {
     type Error = TokenizationError;
 
     fn try_from(token: RawToken) -> Result<Self, Self::Error> {
         let variant = match token.variant {
-            RawTokenVariant::Text => {
+            RawTokenVariant::Opcode => {
                 match Opcode::from_str(&token.value) {
                     Ok(opc) => TokenVariant::Opcode(opc),
                     Err(_) => return Err(TokenizationError {
                         line: token.line,
-                        position: token.column,
+                        column: token.column,
                         variant: TokenizationErrorVariant::OpcodeNotRecognised,
                     }),
                 }
@@ -43,7 +49,7 @@ impl TryFrom<RawToken> for Token {
                     Ok(unsigned) => TokenVariant::Unsigned(unsigned),
                     Err(error) => return Err(TokenizationError {
                         line: token.line,
-                        position: token.column,
+                        column: token.column,
                         variant: TokenizationErrorVariant::ParseIntError(error),
                     })
                 }
@@ -53,7 +59,7 @@ impl TryFrom<RawToken> for Token {
                     Ok(signed) => TokenVariant::Signed(signed),
                     Err(error) => return Err(TokenizationError {
                         line: token.line,
-                        position: token.column,
+                        column: token.column,
                         variant: TokenizationErrorVariant::ParseIntError(error),
                     }),
                 }
@@ -64,7 +70,7 @@ impl TryFrom<RawToken> for Token {
                     Ok(reg) => TokenVariant::Register(reg),
                     Err(_) => return Err(TokenizationError {
                         line: token.line,
-                        position: token.column,
+                        column: token.column,
                         variant: TokenizationErrorVariant::ParseRegisterError,
                     }),
                 }

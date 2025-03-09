@@ -4,7 +4,7 @@ use std::num::ParseIntError;
 #[derive(Debug)]
 pub struct TokenizationError {
     pub line: usize,
-    pub position: usize,
+    pub column: usize,
     pub variant: TokenizationErrorVariant,
 }
 
@@ -14,6 +14,8 @@ pub enum TokenizationErrorVariant {
     OpcodeNotRecognised,
     ParseIntError(ParseIntError),
     ParseRegisterError,
+    NoProviderFinished,
+    MultipleProvidersFinished,
 }
 
 impl Display for TokenizationError {
@@ -23,6 +25,8 @@ impl Display for TokenizationError {
             TokenizationErrorVariant::OpcodeNotRecognised => "Unrecognized opcode".to_string(),
             TokenizationErrorVariant::ParseIntError(_) => "Integer parsing error".to_string(),
             TokenizationErrorVariant::ParseRegisterError => "Unparsable register".to_string(),
+            TokenizationErrorVariant::NoProviderFinished => "No provider finished".to_string(),
+            TokenizationErrorVariant::MultipleProvidersFinished => "Multiple providers finished".to_string(),
         };
         write!(f, "{}", str)
     }

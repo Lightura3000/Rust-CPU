@@ -30,7 +30,7 @@ impl Display for AssemblyError {
         };
 
         let detailed = if let Some(position) = self.column {
-            format!("Line {} position {}: {}", self.line + 1, position, str)
+            format!("Line {} position {}: {}", self.line + 1, position + 1, str)
         } else {
             format!("Line {}: {}", self.line + 1, str)
         };
@@ -43,7 +43,7 @@ impl From<TokenizationError> for AssemblyError {
     fn from(error: TokenizationError) -> Self {
         Self {
             line: error.line,
-            column: Some(error.position),
+            column: Some(error.column),
             variant: AssemblyErrorVariant::TokenizationError(error),
         }
     }

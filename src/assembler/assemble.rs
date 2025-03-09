@@ -2,17 +2,20 @@ use crate::assembler::{
     assembly_error::{AssemblyError, AssemblyErrorVariant},
     grammar::construct_instruction::{construct_instruction, find_matching_pattern},
     grammar::token_pattern::AmbiguousToken,
-    tokenization::tokenize::{tokenize, Tokenizer},
+    tokenization::tokenize::Tokenizer,
     tokenization::raw_token::RawToken,
     tokenization::token::{Token, TokenVariant::*},
     tokenization::tokenization_error::TokenizationError,
 };
 use std::collections::HashMap;
 
-pub fn assemble(src: &str) -> Result<Vec<u32>, AssemblyError> {
+pub fn assemble(src: String) -> Result<Vec<u32>, AssemblyError> {
     let mut instructions = Vec::new();
 
-    let token_lines = tokenize(src)?;
+    let mut tokenizer = Tokenizer::new(src);
+    let raw_tokens = tokenizer.tokenize()?;
+    let token_stream = make_raw_tokens_normal(raw_tokens)?;
+    let token_lines = collect_into_lines(token_stream);
 
     let (token_lines, labels) = extract_labels(token_lines);
 
@@ -57,39 +60,6 @@ fn make_tokens_ambiguous(tokens: &[Token]) -> Vec<AmbiguousToken> {
     let mut ambiguous_tokens = Vec::with_capacity(tokens.len());
     tokens.iter().for_each(|token| ambiguous_tokens.push(AmbiguousToken::from(&token.variant)));
     ambiguous_tokens
-}
-
-pub fn assemble_new(src: String) -> Result<Vec<u32>, AssemblyError> {
-    let mut instructions = Vec::new();
-
-    let tokenizer = Tokenizer::new(src);
-    let raw_tokens = tokenizer.tokenize()?;
-    let token_stream = make_raw_tokens_normal(raw_tokens)?;
-
-    for token in &token_stream {
-        println!("{:?}", token);
-    }
-
-    let token_lines = collect_into_lines(token_stream);
-
-    let (token_lines, labels) = extract_labels(token_lines);
-
-    for (instruction, tokens) in token_lines.iter().enumerate() {
-        let ambiguous_tokens = make_tokens_ambiguous(tokens);
-
-        let pattern = match find_matching_pattern(&ambiguous_tokens) {
-            None => return Err(AssemblyError {
-                line: tokens[0].line,
-                column: None,
-                variant: AssemblyErrorVariant::UnknownTokenPattern }),
-            Some(pattern) => pattern,
-        };
-
-        let constructed_instruction = construct_instruction(tokens, &pattern.bit_pattern, &pattern.encoding, &labels, instruction)?;
-        instructions.push(constructed_instruction);
-    }
-
-    Ok(instructions)
 }
 
 fn collect_into_lines(tokens: Vec<Token>) -> Vec<Vec<Token>> {
